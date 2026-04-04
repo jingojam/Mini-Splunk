@@ -23,32 +23,32 @@ void Client::SendLogFile(string filename, int fd){
 }
 
 void Client::CommandInterface(){
-	char str[4096];
-	size_t command_type;
+	char command_buffer[1024];
 	int fd;
 	vector<string> command_tokens;
 	Address address;
 	
 	while(1){		
 		cout << "Client> ";
-		cin.getline(str, 4096);
 		
-		string command(str);
+		cin.getline(str, 1024);
 		
-		command = ToLower(command);
+		// convert from char* command input buffer to string
+		string command(command_buffer);
 		
-		if(command.length() == 1 && command == "exit"){
-			break;
-		}
-		
-		// tokenize the command string input
+		// tokenize the command buffer
 		command_tokens = Tokenize(command);
 
 		// obtain iterator to the map key-value pair
 		auto it = command_type.find(command_tokens[0]);
 
+		// if command is -1 (EXIT)
+		if(it != command_type.end() && it->second == -1){
+			break;
+		}
+
 		// if command type is 0 (INGEST)
-		if(it != command_type.end() && it->second == 0){
+		else if(it != command_type.end() && it->second == 0){
 			address = ExtractAddress(command_tokens[2]);
 			
 			if(fd = ConnectToServer(address.ip, address.port)){

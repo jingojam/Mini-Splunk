@@ -71,6 +71,7 @@ const unordered_map<string, int> keyword_to_severity = {
 // command type map for faster command identification
 // useful for integer instead of string for comparions
 const unordered_map<string, int> command_type = {
+	{"EXIT", -1},
 	{"INGEST", 0},
 	{"QUERY", 1},
 	{"PURGE", 2}
