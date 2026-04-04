@@ -41,12 +41,21 @@ void Client::CommandInterface(){
 			break;
 		}
 		
+		// tokenize the command string input
 		command_tokens = Tokenize(command);
 
-		if(command_tokens[0] == "ingest"){
+		// obtain iterator to the map key-value pair
+		auto it = command_type.find(command_tokens[0]);
+
+		// if command type is 0 (INGEST)
+		if(it != command_type.end() && it->second == 0){
 			address = ExtractAddress(command_tokens[2]);
 			
 			if(fd = ConnectToServer(address.ip, address.port)){
+				
+				string command_msg = command_tokens[0] + " " + command_tokens[1];
+				int senddata = send(fd, command_msg.c_str(), command_msg.length()); 
+				
 				SendLogFile(command_tokens[1], fd);
 				// file ingest
 			}

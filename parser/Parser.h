@@ -68,12 +68,15 @@ const unordered_map<string, int> keyword_to_severity = {
     {"debug", 7}, {"verbose", 7}
 };
 
+// command type map for faster command identification
+// useful for integer instead of string for comparions
 const unordered_map<string, int> command_type = {
 	{"INGEST", 0},
 	{"QUERY", 1},
 	{"PURGE", 2}
 };
 
+// query type map
 const unordered_map<string, int> query_type = {
 	{"SEARCH_DATE", 0},
 	{"SEARCH_HOST", 1},
