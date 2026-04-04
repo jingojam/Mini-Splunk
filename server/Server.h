@@ -46,7 +46,7 @@ shared_mutex rw_mutex;
 /*
 	Server class for handling clients
 */
-class Server : public Parser{ // inherit parsing methods
+class Server{ // inherit parsing methods
 	private:
 		string ip;
 		uint16_t port;

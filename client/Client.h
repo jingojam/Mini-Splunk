@@ -21,7 +21,7 @@ using namespace std;
 /*
 	Client class for facilitiating commands 
 */
-class Client : public Parser{ // client inherits parsing methods
+class Client{ // client inherits parsing methods
 	private:	
 		// network methods
 		void SendLogFile(string filename, int fd);

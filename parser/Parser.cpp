@@ -1,7 +1,5 @@
 #include "Parser.h"
 
-Parser::Parser(){}
-
 /*
 	(BUGGY)
 	
@@ -10,7 +8,7 @@ Parser::Parser(){}
 	
 	returns data size as a number
 */
-size_t Parser::StripNetworkLog(string* str){
+size_t StripNetworkLog(string* str){
 	size_t size = 0;
 	size_t space_index = str->find(' ');
 	
@@ -22,7 +20,7 @@ size_t Parser::StripNetworkLog(string* str){
 	return size;
 }
 
-string Parser::ToLower(string str){
+string ToLower(string str){
 	// transform string using tolower() lambda function
 	transform(str.begin(), str.end(), str.begin(), [](unsigned char c){return static_cast<char>(tolower(c));});
 	return str;
@@ -36,7 +34,7 @@ string Parser::ToLower(string str){
 	log: Feb 15 00:54:54 SYSSVR1 sshd[262715]: Failed password for root from 130.12.181.97 port 20066 ssh2
 	idx: 0   1  2        3       4             5      6        7   8    9    10            11   12    13
 */
-vector<string> Parser::Tokenize(string str){
+vector<string> Tokenize(string str){
 	stringstream ss(str);
 	string word;
 	vector<string> tokens;
@@ -49,7 +47,7 @@ vector<string> Parser::Tokenize(string str){
 	return tokens;
 }
 
-string Parser::InferSeverity(vector<string> message){
+string InferSeverity(vector<string> message){
 	int severity = 7; // default is debug
 
 	for(size_t i = 5; i < message.size(); ++i){
@@ -70,7 +68,7 @@ string Parser::InferSeverity(vector<string> message){
 	return severity_level[severity];
 }
 
-Address Parser::ExtractAddress(string address_token){
+Address ExtractAddress(string address_token){
 	Address address;
 	size_t colon_index = address_token.find(':');
 	
@@ -86,7 +84,7 @@ Address Parser::ExtractAddress(string address_token){
 	return address;
 }
 
-LogEntry Parser::ParseLog(string log){
+LogEntry ParseLog(string log){
 	vector<string> log_tokens = Tokenize(log);
 	LogEntry entry;
 	

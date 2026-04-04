@@ -88,23 +88,27 @@ const unordered_map<string, int> query_type = {
 };
 
 /*
-	Parser class that contains string/log parsing functions
+	COMMAND FORMATS:
+		INGEST <path_to_logfile> <IP>:Port> 
+		QUERY <IP>:<Port> SEARCH_DATE <date_string>
+		QUERY <IP>:<Port> SEARCH_HOST <hostname>
+		QUERY <IP>:<Port> SEARCH_DAEMON <daemon_name>
+		QUERY <IP>:<Port> SEARCH_SEVERITY <severity_level>
+		QUERY <IP>:<Port> SEARCH_KEYWORD <keyword>
+		PURGE <IP>:<Port>
 */
-class Parser{
-	protected:
-		Parser();
-		
-		size_t StripNetworkLog(string* str);
-		
-		string ToLower(string str);
 
-		vector<string> Tokenize(string str);
+// function prototypes
+size_t StripNetworkLog(string* str);
 		
-		string InferSeverity(vector<string> message);
+string ToLower(string str);
+
+vector<string> Tokenize(string str);
 		
-		Address ExtractAddress(string address);
+string InferSeverity(vector<string> message);
 		
-		LogEntry ParseLog(string log);
-};
+Address ExtractAddress(string address);
+		
+LogEntry ParseLog(string log);
 
 #endif
