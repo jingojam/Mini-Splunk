@@ -142,7 +142,7 @@ vector<LogEntry> Server::SearcKeyword(string keyword){
 // function for keyword counting
 size_t Server::SearchHost(string keyword){
 	// simply return the size using SearchHost() vector
-	return SearchHost(keyword).size();
+	return static_cast<size_t>SearchHost(keyword).size();
 }
 
 void Server::Start(){
