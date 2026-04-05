@@ -50,8 +50,6 @@ void Client::CommandInterface(){
 		// if command type is 0 (INGEST)
 		else if(it != command_type.end() && it->second == 0){
 			address = ExtractAddress(command_tokens[2]);
-
-			ReadLogFile(command_tokens[1]);
 			
 			// if(fd = ConnectToServer(address.ip, address.port) != -1){
 				
