@@ -41,7 +41,7 @@ unordered_map<string, vector<size_t>> daemon_index;   // process -> master log l
 unordered_map<string, vector<size_t>> severity_index; // severity level -> master log list indexes
 unordered_map<string, vector<size_t>> keyword_index;  // keyword -> master log list indiexes
 
-shared_mutex rw_mutex;
+shared_mutex worker_mutex;
 
 /*
 	Server class for handling clients
@@ -51,6 +51,16 @@ class Server{ // inherit parsing methods
 		string ip;
 		uint16_t port;
 		struct sockaddr_in ip_address;
+
+		// worker function prototypes
+		void Ingest();
+		vector<LogEntry> SearchDate();
+		vector<LogEntry> SearchHost();
+		vector<LogEntry> SearchDaemon();
+		vector<LogEntry> SearchSeverity();
+		vector<LogEntry> SearchKeyword();
+		size_t CountKeyword();
+		void Purge();
 
 	public:
 		Server();

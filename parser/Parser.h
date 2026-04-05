@@ -24,7 +24,7 @@ typedef struct LogEntry{
 	string hostname;
 	Process process;
 	string severity;
-	string message;
+	string message; // maybe keep this as a token list (vector<string>)
 } LogEntry;
 
 // address structure (ip address, port)
