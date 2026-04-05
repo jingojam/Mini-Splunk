@@ -54,12 +54,12 @@ class Server{ // inherit parsing methods
 
 		// worker function prototypes
 		void Ingest();
-		vector<LogEntry> SearchDate();
-		vector<LogEntry> SearchHost();
-		vector<LogEntry> SearchDaemon();
-		vector<LogEntry> SearchSeverity();
-		vector<LogEntry> SearchKeyword();
-		size_t CountKeyword();
+		vector<LogEntry> SearchDate(string date);
+		vector<LogEntry> SearchHost(string hostname);
+		vector<LogEntry> SearchDaemon(string process_name);
+		vector<LogEntry> SearchSeverity(string severity);
+		vector<LogEntry> SearchKeyword(string keyword);
+		size_t CountKeyword(string keyword);
 		void Purge();
 
 	public:

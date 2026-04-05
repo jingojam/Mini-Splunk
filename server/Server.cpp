@@ -12,6 +12,139 @@ Server::Server(string ip_address, uint16_t port){
     this->ip_address.sin_port = htons(port); // must be in network bytes (big endian)
 }
 
+// INGEST function for parsing and indexing of log entries
+void Server::Ingest(){
+	// acquire a unique lock for exclusive access (WRITE to shared data)
+	unique_lock lock(worker_mutex);
+	// critical section
+	// lock is automatically released
+}
+
+// PURGE function for deleting log entries
+void Server::Purge(){
+	// acquire a unique lock for exclusive access (WRITE to shared data)
+	unique_lock lock(worker_mutex);
+	// critical section
+	// lock is automatically released
+}
+
+// function for date lookips
+vector<LogEntry> Server::SearchDate(string date){
+	// acquire a shared lock
+	shared_lock lock(worker_mutex);
+	vector<LogEntry> logs;
+	
+	// try to find the date key
+	auto it = date_index.find(date);
+
+	// if date key is found
+	if(it != date_index.end()){
+		// iterate on the index list and add the corresponding indexed log 
+		for(size_t i = 0; i < it->second.size(); i++){
+			logs.append(log_file[it->second[i]]);
+		}
+	}
+	
+	// lock is automatically released
+	return logs;
+}
+
+// function for hostname lookups
+vector<LogEntry> Server::SearchHost(string hostname){
+	// acquire a shared lock
+	shared_lock lock(worker_mutex);
+	vector<LogEntry> logs;
+	
+	// try to find the hostname key
+	auto it = host_index.find(hostname);
+	
+	// if hostname key is found
+	if(it != host_index.end()){
+		// iterate on the index list and add the corresponding indexed log 
+		for(size_t i = 0; i < it->second.size(); i++){
+			logs.append(log_file[it->second[i]]);
+		}
+	}
+	
+	// lock is automatically released
+	return logs;
+}
+
+// function for process/daemon lookups
+vector<LogEntry> Server::SearchDaemon(string process_name){
+	// acquire a shared lock
+	shared_lock lock(worker_mutex);
+	vector<LogEntry> logs;
+	
+	// try to find the process name key
+	auto it = daemon_index.find(process_name);
+	
+	// if process key is found
+	if(it != daemon_index.end()){
+		// iterate on the index list and add the corresponding indexed log 
+		for(size_t i = 0; i < it->second.size(); i++){
+			logs.append(log_file[it->second[i]]);
+		}
+	}
+	
+	// lock is automatically released
+	return logs;
+}
+
+// function for severity level lookups
+vector<LogEntry> Server::SearchSeverity(string severity){
+	// acquire a shared lock
+	shared_lock lock(worker_mutex);
+	vector<LogEntry> logs;
+	
+	// try to find the severity key
+	auto it = severity_index.find(severity);
+	
+	// if severity key is found
+	if(it != severity_index.end()){
+		// iterate on the index list and add the corresponding indexed log 
+		for(size_t i = 0; i < it->second.size(); i++){
+			logs.append(log_file[it->second[i]]);
+		}
+	}
+	
+	// lock is automatically released
+	return logs;
+}
+
+// function for keyword lookups
+vector<LogEntry> Server::SearcKeyword(string keyword){
+	// acquire (P()) a shared lock
+	shared_lock lock(worker_mutex);
+	vector<LogEntry> logs;
+
+	// critical section
+	// obtain an iterator to the first token in the keyword
+	auto it = keyword_index.find(Tokenize(keyword)[0]);
+	
+	// if it exists
+	if(it != keyword_index.end()){
+		// for every syslog mapped to contain the first word
+		for(size_t i = 0; i < it->second.size(); i++){
+
+			// store if the entire queried string is a substring in the log
+			if(log_file[it->second[i]].find(keyword) != string::npos){
+				logs.append(log_file[it->second[i]]);
+			}
+			
+		}
+	}
+
+	// lock is automatically released (V())
+	return logs;
+}
+
+// function for keyword counting
+size_t Server::SearchHost(string keyword){
+	// simply return the size using SearchHost() vector
+	return SearchHost(keyword).size();
+}
+
 void Server::Start(){
 	int fd, sockfd, epfd;
 	int bindfd, listenfd;
