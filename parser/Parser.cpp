@@ -12,6 +12,7 @@ size_t StripNetworkLog(string* str){
 	size_t size = 0;
 	size_t space_index = str->find(' ');
 	
+	// if a position is found (within the string)
 	if(space_index != string::npos){
 		size = static_cast<size_t>(stoul(str->substr(0, space_index)));
 		str->erase(0, space_index + 1);
@@ -49,7 +50,7 @@ vector<string> Tokenize(string str){
 
 string InferSeverity(vector<string> message){
 	int severity = 7; // default is debug
-
+	
 	for(size_t i = 5; i < message.size(); ++i){
 		// obtain a value from the severity map using the key in the index
 		string token = ToLower(message[i]);
@@ -93,15 +94,27 @@ LogEntry ParseLog(string log){
 	entry.hostname = log_tokens[3];
 	
 	// get the process value (strip of extra arguments)
-	size_t bracket_index = log_tokens[4].find('['); //process without e.g., sshd[...
-	size_t colon_index = log_tokens[4].find(':'); // process e.g., sshd:...
+	size_t open_bracket_index = log_tokens[4].find('['); // first instance of `[` (e.g., "sshd[...")
+	size_t close_bracket_index = log_tokens[4].find(']'); // first insance of `]` (e.g., "sshd[...]")	
+	size_t colon_index = log_tokens[4].find(':'); // first instance of `:` (e.g., "sshd:...")
 	
-	if(bracket_index != string::npos) 
-		entry.process = log_tokens[4].substr(0, bracket_index); // indexes until the bracket
-	else if(colon_index != string::npos) 
-		entry.process = log_tokens[4].substr(0, colon_index); //consider string until the colon
-	else
-		entry.process = log_tokens[4];
+	entry.process.name = "";
+	entry.process.arguments = "";
+	
+	if(open_bracket_index != string::npos){
+		entry.process.name = log_tokens[4].substr(0, open_bracket_index); // indexes until the bracket
+		
+		if(close_bracket_index != string::npos){
+			entry.process.arguments = log_tokens[4].substr(open_bracket_index, close_bracket_index + 1);
+		}
+	}	
+	else if(colon_index != string::npos){ 
+		entry.process.name = log_tokens[4].substr(0, colon_index); //consider string until the colon
+		entry.process.arguments = ":";
+	}
+	else{
+		entry.process.name = log_tokens[4];
+	}
 	
 	entry.severity = InferSeverity(log_tokens);
 	
@@ -109,7 +122,7 @@ LogEntry ParseLog(string log){
 	
 	// reconstruct original message string
 	for(size_t i = 5; i < log_tokens.size(); i++){
-		if(i+1 < log_tokens.size()){
+		if(i != log_tokens.size() - 1){
 			entry.message += " ";
 		}
 		
@@ -118,14 +131,3 @@ LogEntry ParseLog(string log){
 	
 	return entry;
 }
-
-/*
-	COMMAND FORMATS:
-		INGEST <path_to_logfile> <IP>:Port> 
-		QUERY <IP>:<Port> SEARCH_DATE <date_string>
-		QUERY <IP>:<Port> SEARCH_HOST <hostname>
-		QUERY <IP>:<Port> SEARCH_DAEMON <daemon_name>
-		QUERY <IP>:<Port> SEARCH_SEVERITY <severity_level>
-		QUERY <IP>:<Port> SEARCH_KEYWORD <keyword>
-		PURGE <IP>:<Port>
-*/

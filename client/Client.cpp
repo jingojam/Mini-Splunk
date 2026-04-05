@@ -31,7 +31,7 @@ void Client::CommandInterface(){
 	while(1){		
 		cout << "Client> ";
 		
-		cin.getline(str, 1024);
+		cin.getline(command_buffer, 1024);
 		
 		// convert from char* command input buffer to string
 		string command(command_buffer);
@@ -50,15 +50,17 @@ void Client::CommandInterface(){
 		// if command type is 0 (INGEST)
 		else if(it != command_type.end() && it->second == 0){
 			address = ExtractAddress(command_tokens[2]);
+
+			ReadLogFile(command_tokens[1]);
 			
-			if(fd = ConnectToServer(address.ip, address.port)){
+			// if(fd = ConnectToServer(address.ip, address.port) != -1){
 				
-				string command_msg = command_tokens[0] + " " + command_tokens[1];
-				int senddata = send(fd, command_msg.c_str(), command_msg.length()); 
+				// string command_msg = command_tokens[0] + " " + command_tokens[1];
+				// int senddata = send(fd, command_msg.c_str(), command_msg.length(), 0); 
 				
-				SendLogFile(command_tokens[1], fd);
-				// file ingest
-			}
+				// SendLogFile(command_tokens[1], fd);
+				// // file ingest
+			// }
 		} 
 		
 		// other commands..

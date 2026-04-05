@@ -11,13 +11,18 @@
 
 using namespace std;
 
+typedef struct Process{
+	string name;
+	string arguments;
+} Process;
+
 // log entry structure
 typedef struct LogEntry{
 	// parsed attributes from a log line
 	string date;
 	string timestamp;
 	string hostname;
-	string process;
+	Process process;
 	string severity;
 	string message;
 } LogEntry;
@@ -86,17 +91,6 @@ const unordered_map<string, int> query_type = {
 	{"SEARCH_KEYWORD", 4},
 	{"COUNT_KEYWORD", 5}
 };
-
-/*
-	COMMAND FORMATS:
-		INGEST <path_to_logfile> <IP>:Port> 
-		QUERY <IP>:<Port> SEARCH_DATE <date_string>
-		QUERY <IP>:<Port> SEARCH_HOST <hostname>
-		QUERY <IP>:<Port> SEARCH_DAEMON <daemon_name>
-		QUERY <IP>:<Port> SEARCH_SEVERITY <severity_level>
-		QUERY <IP>:<Port> SEARCH_KEYWORD <keyword>
-		PURGE <IP>:<Port>
-*/
 
 // function prototypes
 size_t StripNetworkLog(string* str);

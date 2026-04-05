@@ -59,8 +59,10 @@ void Server::Start(){
 	event.events = EPOLLIN;
 	event.data.fd = sockfd;
 	
+	// create an epoll instance for multiplexing
 	epollfd = epoll_create1(0);
 	
+	// add the server network socket to epoll
 	epoll_ctl(epollfd, EPOLL_CTL_ADD, sockfd, &event);
 	
 	while(1){
@@ -94,7 +96,7 @@ void Server::Start(){
 				char buffer[4096];
 				int read;
 				
-				read = recv(eventfd, buffer, sizeof(buffer), 0);
+				//read = recv(eventfd, buffer, sizeof(buffer), 0);
 				
 				string str(buffer);
 				// gets the log character length prefix, and strips it from the log string
