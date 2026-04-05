@@ -28,8 +28,7 @@ string ToLower(string str){
 }
 
 /*
-	Tokenizes a log entry string by splitting the string 
-	via space delimeter
+	Tokenizes a string by splitting the string via space delimeter
 	
 	example:
 	log: Feb 15 00:54:54 SYSSVR1 sshd[262715]: Failed password for root from 130.12.181.97 port 20066 ssh2
@@ -60,6 +59,7 @@ string InferSeverity(vector<string> message){
 		
 		// if the iterator is not past-the-end
 		if(it != keyword_to_severity.end()){
+			// if the severity is higher (lower in value), set the new severity
 			if(it->second < severity){
 				severity = it->second;
 			}
@@ -69,6 +69,8 @@ string InferSeverity(vector<string> message){
 	return severity_level[severity];
 }
 
+// function ro extract ip address and port from a string argument
+//  e.g., "192.168.254.118:5460", returns `Address` struct
 Address ExtractAddress(string address_token){
 	Address address;
 	size_t colon_index = address_token.find(':');
@@ -85,6 +87,7 @@ Address ExtractAddress(string address_token){
 	return address;
 }
 
+// function for structuring log data 
 LogEntry ParseLog(string log){
 	vector<string> log_tokens = Tokenize(log);
 	LogEntry entry;
@@ -102,16 +105,22 @@ LogEntry ParseLog(string log){
 	entry.process.arguments = "";
 	
 	if(open_bracket_index != string::npos){
+		// process name is the string right before the arguments ([...]) part, like sshd
 		entry.process.name = log_tokens[4].substr(0, open_bracket_index); // indexes until the bracket
 		
 		if(close_bracket_index != string::npos){
+			// arguments includes strings right after the process, like "[...]"
 			entry.process.arguments = log_tokens[4].substr(open_bracket_index, close_bracket_index + 1);
 		}
 	}	
+	
+	// otherwise, there are some cases where a colon is in the affix of the process name
 	else if(colon_index != string::npos){ 
 		entry.process.name = log_tokens[4].substr(0, colon_index); //consider string until the colon
 		entry.process.arguments = ":";
 	}
+	
+	// or just a process name without any affix (unusual)
 	else{
 		entry.process.name = log_tokens[4];
 	}
@@ -120,7 +129,7 @@ LogEntry ParseLog(string log){
 	
 	entry.message = "";
 	
-	// reconstruct original message string
+	// reconstruct original message string throuhg concatenation
 	for(size_t i = 5; i < log_tokens.size(); i++){
 		if(i != log_tokens.size() - 1){
 			entry.message += " ";
