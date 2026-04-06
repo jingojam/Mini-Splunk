@@ -213,9 +213,11 @@ void Server::AcceptClients(int epollfd, int sockfd){
 		event.events = EPOLLIN;
 			
 		// add the client socket to interest list
-		if(epoll_ctl(epollfd, EPOLL_CTL_ADD, sockfd, &event) == -1){
+		if(epoll_ctl(epollfd, EPOLL_CTL_ADD, clientfd, &event) == -1){
 			return;
 		}
+		cout << "[STATUS] Client connected at " << inet_ntoa(client_address.sin_addr) << ":" << to_string(client_address.sin_port) << "\n";
+		
 	} else{
 		// if accept returns -1, means no clients connecting, accept returns an errno
 		//  and if errno is EAGAIN or EWOULDBLOCK, queue is empty
@@ -239,7 +241,7 @@ void Server::MonitorEvents(int epollfd, int sockfd){
 			
 			// event is oon the server socket (new connection requested to be established)
 			if(fd == sockfd){
-				AcceptClients(sockfd, epollfd);
+				AcceptClients(epollfd, sockfd);
 				break;
 			}
 		}
