@@ -41,7 +41,7 @@ vector<LogEntry> Server::SearchDate(string date){
 	if(it != date_index.end()){
 		// iterate on the index list and add the corresponding indexed log 
 		for(size_t i = 0; i < it->second.size(); i++){
-			logs.append(log_file[it->second[i]]);
+			logs.push_back(log_file[it->second[i]]);
 		}
 	}
 	
@@ -62,7 +62,7 @@ vector<LogEntry> Server::SearchHost(string hostname){
 	if(it != host_index.end()){
 		// iterate on the index list and add the corresponding indexed log 
 		for(size_t i = 0; i < it->second.size(); i++){
-			logs.append(log_file[it->second[i]]);
+			logs.push_back(log_file[it->second[i]]);
 		}
 	}
 	
@@ -83,7 +83,7 @@ vector<LogEntry> Server::SearchDaemon(string process_name){
 	if(it != daemon_index.end()){
 		// iterate on the index list and add the corresponding indexed log 
 		for(size_t i = 0; i < it->second.size(); i++){
-			logs.append(log_file[it->second[i]]);
+			logs.push_back(log_file[it->second[i]]);
 		}
 	}
 	
@@ -104,7 +104,7 @@ vector<LogEntry> Server::SearchSeverity(string severity){
 	if(it != severity_index.end()){
 		// iterate on the index list and add the corresponding indexed log 
 		for(size_t i = 0; i < it->second.size(); i++){
-			logs.append(log_file[it->second[i]]);
+			logs.push_back(log_file[it->second[i]]);
 		}
 	}
 	
@@ -113,7 +113,7 @@ vector<LogEntry> Server::SearchSeverity(string severity){
 }
 
 // function for keyword lookups
-vector<LogEntry> Server::SearcKeyword(string keyword){
+vector<LogEntry> Server::SearchKeyword(string keyword){
 	// acquire (P()) a shared lock
 	shared_lock lock(worker_mutex);
 	vector<LogEntry> logs;
@@ -128,8 +128,8 @@ vector<LogEntry> Server::SearcKeyword(string keyword){
 		for(size_t i = 0; i < it->second.size(); i++){
 
 			// store if the entire queried string is a substring in the log
-			if(log_file[it->second[i]].find(keyword) != string::npos){
-				logs.append(log_file[it->second[i]]);
+			if(log_file[it->second[i]].message.find(keyword) != string::npos){
+				logs.push_back(log_file[it->second[i]]);
 			}
 			
 		}
@@ -140,9 +140,9 @@ vector<LogEntry> Server::SearcKeyword(string keyword){
 }
 
 // function for keyword counting
-size_t Server::SearchHost(string keyword){
+size_t Server::CountKeyword(string keyword){
 	// simply return the size using SearchHost() vector
-	return static_cast<size_t>SearchHost(keyword).size();
+	return static_cast<size_t>(SearchHost(keyword).size());
 }
 
 void Server::Start(){
