@@ -33,24 +33,35 @@
 
 using namespace std;
 
-// shared structures
-vector<LogEntry> log_file; // master log list
-unordered_map<string, vector<size_t>> date_index;     // date -> master log list indexes
-unordered_map<string, vector<size_t>> host_index;     // hostname -> master log list indexes
-unordered_map<string, vector<size_t>> daemon_index;   // process -> master log list indexes
-unordered_map<string, vector<size_t>> severity_index; // severity level -> master log list indexes
-unordered_map<string, vector<size_t>> keyword_index;  // keyword -> master log list indiexes
-
-shared_mutex worker_mutex;
+typedef struct Client{
+	int fd;
+	string command;
+} Client;
 
 /*
 	Server class for handling clients
 */
 class Server{ // inherit parsing methods
 	private:
+		// server network infos
 		string ip;
 		uint16_t port;
 		struct sockaddr_in ip_address;
+		vector<Client> clients;
+		
+		// shared structures
+		vector<LogEntry> log_file; // master log list
+		unordered_map<string, vector<size_t>> date_index;     // date -> master log list indexes
+		unordered_map<string, vector<size_t>> host_index;     // hostname -> master log list indexes
+		unordered_map<string, vector<size_t>> daemon_index;   // process -> master log list indexes
+		unordered_map<string, vector<size_t>> severity_index; // severity level -> master log list indexes
+		unordered_map<string, vector<size_t>> keyword_index;  // keyword -> master log list indiexes
+
+		// shared mutex for acquiring shared and unique locks
+		shared_mutex worker_mutex;
+		
+		// que of tasks for workers
+		queue<string> task_queue;
 
 		// worker function prototypes
 		void Ingest();
@@ -61,6 +72,14 @@ class Server{ // inherit parsing methods
 		vector<LogEntry> SearchKeyword(string keyword);
 		size_t CountKeyword(string keyword);
 		void Purge();
+		
+		//network functions
+		int CreateSocket();
+		int EpollSocket(int sockfd);
+		void AcceptClients(int epollfd, int sockfd);
+		void MonitorEvents(int epollfd, int sockfd);
+		void Send();
+		void Receive();
 
 	public:
 		Server();

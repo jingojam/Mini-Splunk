@@ -24,7 +24,9 @@ void Server::Ingest(){
 void Server::Purge(){
 	// acquire a unique lock for exclusive access (WRITE to shared data)
 	unique_lock lock(worker_mutex);
-	// critical section
+	/*
+		critical section: erase() indexes and central log list
+	*/
 	// lock is automatically released
 }
 
@@ -35,13 +37,13 @@ vector<LogEntry> Server::SearchDate(string date){
 	vector<LogEntry> logs;
 	
 	// try to find the date key
-	auto it = date_index.find(date);
+	auto it = this->date_index.find(date);
 
 	// if date key is found
-	if(it != date_index.end()){
+	if(it != this->date_index.end()){
 		// iterate on the index list and add the corresponding indexed log 
 		for(size_t i = 0; i < it->second.size(); i++){
-			logs.push_back(log_file[it->second[i]]);
+			logs.push_back(this->log_file[it->second[i]]);
 		}
 	}
 	
@@ -56,13 +58,13 @@ vector<LogEntry> Server::SearchHost(string hostname){
 	vector<LogEntry> logs;
 	
 	// try to find the hostname key
-	auto it = host_index.find(hostname);
+	auto it = this->host_index.find(hostname);
 	
 	// if hostname key is found
-	if(it != host_index.end()){
+	if(it != this->host_index.end()){
 		// iterate on the index list and add the corresponding indexed log 
 		for(size_t i = 0; i < it->second.size(); i++){
-			logs.push_back(log_file[it->second[i]]);
+			logs.push_back(this->log_file[it->second[i]]);
 		}
 	}
 	
@@ -77,13 +79,13 @@ vector<LogEntry> Server::SearchDaemon(string process_name){
 	vector<LogEntry> logs;
 	
 	// try to find the process name key
-	auto it = daemon_index.find(process_name);
+	auto it = this->daemon_index.find(process_name);
 	
 	// if process key is found
-	if(it != daemon_index.end()){
+	if(it != this->daemon_index.end()){
 		// iterate on the index list and add the corresponding indexed log 
 		for(size_t i = 0; i < it->second.size(); i++){
-			logs.push_back(log_file[it->second[i]]);
+			logs.push_back(this->log_file[it->second[i]]);
 		}
 	}
 	
@@ -98,13 +100,13 @@ vector<LogEntry> Server::SearchSeverity(string severity){
 	vector<LogEntry> logs;
 	
 	// try to find the severity key
-	auto it = severity_index.find(severity);
+	auto it = this->severity_index.find(severity);
 	
 	// if severity key is found
-	if(it != severity_index.end()){
+	if(it != this->severity_index.end()){
 		// iterate on the index list and add the corresponding indexed log 
 		for(size_t i = 0; i < it->second.size(); i++){
-			logs.push_back(log_file[it->second[i]]);
+			logs.push_back(this->log_file[it->second[i]]);
 		}
 	}
 	
@@ -120,16 +122,16 @@ vector<LogEntry> Server::SearchKeyword(string keyword){
 
 	// critical section
 	// obtain an iterator to the first token in the keyword
-	auto it = keyword_index.find(Tokenize(keyword)[0]);
+	auto it = this->keyword_index.find(Tokenize(keyword)[0]);
 	
 	// if it exists
-	if(it != keyword_index.end()){
+	if(it != this->keyword_index.end()){
 		// for every syslog mapped to contain the first word
 		for(size_t i = 0; i < it->second.size(); i++){
 
 			// store if the entire queried string is a substring in the log
-			if(log_file[it->second[i]].message.find(keyword) != string::npos){
-				logs.push_back(log_file[it->second[i]]);
+			if(this->log_file[it->second[i]].message.find(keyword) != string::npos){
+				logs.push_back(this->log_file[it->second[i]]);
 			}
 			
 		}
@@ -145,100 +147,94 @@ size_t Server::CountKeyword(string keyword){
 	return static_cast<size_t>(SearchHost(keyword).size());
 }
 
-void Server::Start(){
-	int fd, sockfd, epfd;
-	int bindfd, listenfd;
-	// result can be used for non-file descriptor value returns from functions
-	int result; 
+// function for creating a socket instance
+//  returns a socket file descriptor, otherwise a negative integer meaning error creating socket
+int Server::CreateSocket(){
+	int sockfd;
 	
-	// step 1: initialize server socket
-	// SOCK_STREAM for TCP, and non-blocking for `epoll()`
-	sockfd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
-	
-	if(sockfd == -1){
-		cout << "[ERROR] Failed initializing Server socket." << endl;
-		return;
+	// create a socket instance
+	if((sockfd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0)) == -1){
+		return -1; // -1 means socket instance was not created succesfully
 	}
-	
-	cout << "[STATUS] Successfully initialized Server socket." << endl;
-	
-	// set options to allow Server to reuse socket in case 
-	int option = 1;
-	setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
-	
-	// step 2: bind server ip and port
-	if(bind(sockfd, (struct sockaddr*)&this->ip_address, sizeof(this->ip_address)) != 0){
-		cout << "[ERROR] Failed binding Server to " << this->ip << ":" << this->port << endl;
-		return;
+
+	// bind the socket to the server IP and port
+	if(bind(sockfd, (struct sockaddr*)&this->ip_address, sizeof(this->ip_address)) == -1){
+		return -2; // -2 means socket instance was created but failed to bind to server
 	}
-	
-	cout << "[STATUS] Successfully bound Server to " << this->ip << ":" << this->port << endl;
-	
-	// step 3: server must now listen for incoming connections
+
+	// set the socket to listening state
 	if(listen(sockfd, SOMAXCONN) == -1){
-		cout << "[ERROR] Failed to initialize Server listening state." << endl;
-		return;
+		return -3; // -3 means socket instance was bind to the server but failed to be set to listening state
+	}
+
+	// otherwise if successful return the socket file descriptor
+	return sockfd;
+}
+
+int Server::EpollSocket(int sockfd){
+	struct epoll_event event;
+	int epollfd = epoll_create1(0);
+	
+	if(epollfd == -1){
+		return -1; // -1 means epoll instance failed to be created
 	}
 	
-	cout << "[STATUS] Server is ready." << endl;
-	
-	// client handling
-	int clientfd, epollfd, count;
-	struct sockaddr_in client_addr;
-	socklen_t addrlen = sizeof(client_addr);
-	struct epoll_event events[10];
-	struct epoll_event event;
-	
-	event.events = EPOLLIN;
 	event.data.fd = sockfd;
+	event.events = EPOLLIN; // associated file available for read
 	
-	// create an epoll instance for multiplexing
-	epollfd = epoll_create1(0);
+	if(epoll_ctl(epollfd, EPOLL_CTL_ADD, sockfd, &event) == -1){
+		return -2; // -2 means epoll failed to add the server socket file descriptor for monitoring
+	}
 	
-	// add the server network socket to epoll
-	epoll_ctl(epollfd, EPOLL_CTL_ADD, sockfd, &event);
+	// otherwise return the epoll instance file descriptor
+	return epollfd;
+}
+
+void Server::AcceptClients(int epollfd, int sockfd){
 	
-	while(1){
-		// obtain the number of events the server must monitor
-		count = epoll_wait(epollfd, events, 10, -1);
-	 
-		for(size_t i = 0; i < count; ++i){
-			int eventfd = events[i].data.fd;
+}
+
+void Server::MonitorEvents(int epollfd, int sockfd){
+	int fd, fds;
+	struct epoll_event events[10];
 	
-			// if the event happens in the listening socket
-			if(eventfd == sockfd){
-				// for edge-triggered events, this must be inside a loop
-				//  but in the interest of simplicity, server backend uses level-triggered events
-				clientfd = accept(sockfd, (struct sockaddr*)&client_addr, &addrlen); // accept the client
-				
-				if(clientfd != -1){
-					cout << "[STATUS] Client Connected." << endl;
-							
-					// set client to non-blocking
-					fcntl(clientfd, F_SETFL, (fcntl(clientfd, F_GETFL) | O_NONBLOCK));
-							
-					// add the client to epoll
-					event.events = EPOLLIN;
-					event.data.fd = clientfd;
-					epoll_ctl(epollfd, EPOLL_CTL_ADD, clientfd, &event);
-				}
-			} 
+	while(true){
+		// obtain num of file descriptors ready for I/O
+		fds = epoll_wait(epollfd, events, 10, -1);
+		
+		// handle each event
+		for(size_t i = 0; i < fds; i++){
+			fd = events[i].data.fd; // get the file descriptor from the epoll event
 			
-			// if events is a client sending a command to the server (file descriptor has data available to be read)
-			else if(events[i].events & EPOLLIN){
-				char buffer[4096];
-				int read;
+			// event is oon the server socket (new connection requested to be established)
+			if(fd == sockfd){
 				
-				//read = recv(eventfd, buffer, sizeof(buffer), 0);
-				
-				string str(buffer);
-				// gets the log character length prefix, and strips it from the log string
-				size_t expected_length = StripNetworkLog(&str);
-				
-				LogEntry entry = ParseLog(buffer);
-				//cout << entry.date << " " << entry.timestamp << " " << entry.hostname << " " << entry.process << " " << entry.severity << " " << entry.message << endl << endl;
 			}
 		}
+	}
+}
+
+void Server::Start(){
+	// first step is to create a network socket
+	int sockfd, epollfd;
+	
+	if((sockfd = CreateSocket()) < 0){
+		
+		if(sockfd == -1){
+			cout << "[ERROR] Failed to create socket.\n";
+		} else if(sockfd == -2){	
+			cout << "[ERROR] Failed to bind socket.\n";
+		} else{
+			cout << "[ERROR] Failed to set socket to listening state.\n";
+		}
+			
+		return;
+	} 
+	
+	cout << "[STATUS] Server is ready.\n";
+
+	if((epollfd = EpollSocket(sockfd)) != -1){
+		MonitorEvents(epollfd, sockfd);
 	}
 
 	close(sockfd);
