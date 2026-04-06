@@ -51,14 +51,14 @@ void Client::CommandInterface(){
 		else if(it != command_type.end() && it->second == 0){
 			address = ExtractAddress(command_tokens[2]);
 			
-			// if(fd = ConnectToServer(address.ip, address.port) != -1){
+			if(fd = ConnectToServer(address.ip, address.port) != -1){
 				
 				// string command_msg = command_tokens[0] + " " + command_tokens[1];
 				// int senddata = send(fd, command_msg.c_str(), command_msg.length(), 0); 
 				
 				// SendLogFile(command_tokens[1], fd);
 				// // file ingest
-			// }
+			}
 		} 
 		
 		// other commands..

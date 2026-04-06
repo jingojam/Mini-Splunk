@@ -182,6 +182,7 @@ int Server::EpollSocket(int sockfd){
 	event.data.fd = sockfd;
 	event.events = EPOLLIN; // associated file available for read
 	
+	// add the socket to interest list
 	if(epoll_ctl(epollfd, EPOLL_CTL_ADD, sockfd, &event) == -1){
 		return -2; // -2 means epoll failed to add the server socket file descriptor for monitoring
 	}
@@ -191,7 +192,37 @@ int Server::EpollSocket(int sockfd){
 }
 
 void Server::AcceptClients(int epollfd, int sockfd){
+	struct sockaddr_in client_address;
+	socklen_t client_address_length = sizeof(client_address);
+	struct epoll_event event;
+	int clientfd;
+	Client client;
 	
+	// accept the client
+	if((clientfd = accept(sockfd, (struct sockaddr*)&client_address, &client_address_length)) != -1){
+		client.fd = clientfd;
+		client.command = "";
+			
+		// store the client for further processing
+		this->clients.push_back(client);
+			
+		// set the client socket to nonblocking
+		fcntl(clientfd, F_SETFL, O_NONBLOCK);
+			
+		event.data.fd = clientfd;
+		event.events = EPOLLIN;
+			
+		// add the client socket to interest list
+		if(epoll_ctl(epollfd, EPOLL_CTL_ADD, sockfd, &event) == -1){
+			return;
+		}
+	} else{
+		// if accept returns -1, means no clients connecting, accept returns an errno
+		//  and if errno is EAGAIN or EWOULDBLOCK, queue is empty
+		if(errno == EAGAIN || errno == EWOULDBLOCK){
+			return;
+		}
+	}
 }
 
 void Server::MonitorEvents(int epollfd, int sockfd){
@@ -208,7 +239,8 @@ void Server::MonitorEvents(int epollfd, int sockfd){
 			
 			// event is oon the server socket (new connection requested to be established)
 			if(fd == sockfd){
-				
+				AcceptClients(sockfd, epollfd);
+				break;
 			}
 		}
 	}
