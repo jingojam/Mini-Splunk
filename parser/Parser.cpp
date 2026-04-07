@@ -1,26 +1,5 @@
 #include "Parser.h"
 
-/*
-	(BUGGY)
-	
-	takes network data size prefix (<size> <space> <log>) from a log line
-	and strips the size prefix from the log pointer
-	
-	returns data size as a number
-*/
-size_t StripNetworkLog(string* str){
-	size_t size = 0;
-	size_t space_index = str->find(' ');
-	
-	// if a position is found (within the string)
-	if(space_index != string::npos){
-		size = static_cast<size_t>(stoul(str->substr(0, space_index)));
-		str->erase(0, space_index + 1);
-	}
-
-	return size;
-}
-
 string ToLower(string str){
 	// transform string using tolower() lambda function
 	transform(str.begin(), str.end(), str.begin(), [](unsigned char c){return static_cast<char>(tolower(c));});
@@ -139,4 +118,8 @@ LogEntry ParseLog(string log){
 	}
 	
 	return entry;
+}
+
+string ParseLog(LogEntry entry){
+	return entry.date + " " + entry.timestamp + " " + entry.hostname + " " + entry.process.name + entry.process.arguments + " " + entry.severity + " " + entry.message;
 }

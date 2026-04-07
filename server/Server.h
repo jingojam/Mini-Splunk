@@ -11,75 +11,59 @@
 
 #define SERVER_WORKERS 8
 
-#include "../parser/Parser.h"
+#include "ServerBackend.h"
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/epoll.h>
 #include <arpa/inet.h>
-#include <netinet/in.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <netdb.h>
-#include <ifaddrs.h>
-#include <cstring>
+#include <errno.h>
+
 #include <iostream>
-#include <thread>
-#include <mutex>
-#include <shared_mutex>
-#include <string>
-#include <vector>
 #include <unordered_map>
-#include <queue>
+#include <vector>
 
 using namespace std;
 
+/*
+	Server.h/cpp facilitates the network operations of the server,
+	such as:
+		- sending and receiving data from a client
+		- monitoring client connections via epoll
+*/
+
 typedef struct Client{
-	int fd;
-	string command;
+	int fd; // client socket file descriptor
+	string buffer; // client buffer
+	bool ingest = false; // if client wants to ingest
+	bool query = false;
+	vector<string> logs;
 } Client;
 
 /*
 	Server class for handling clients
 */
-class Server{ // inherit parsing methods
+class Server{
 	private:
 		// server network infos
 		string ip;
 		uint16_t port;
 		struct sockaddr_in ip_address;
-		vector<Client> clients;
-		
-		// shared structures
-		vector<LogEntry> log_file; // master log list
-		unordered_map<string, vector<size_t>> date_index;     // date -> master log list indexes
-		unordered_map<string, vector<size_t>> host_index;     // hostname -> master log list indexes
-		unordered_map<string, vector<size_t>> daemon_index;   // process -> master log list indexes
-		unordered_map<string, vector<size_t>> severity_index; // severity level -> master log list indexes
-		unordered_map<string, vector<size_t>> keyword_index;  // keyword -> master log list indiexes
-
-		// shared mutex for acquiring shared and unique locks
-		shared_mutex worker_mutex;
-		
-		// que of tasks for workers
-		queue<string> task_queue;
-
-		// worker function prototypes
-		void Ingest();
-		vector<LogEntry> SearchDate(string date);
-		vector<LogEntry> SearchHost(string hostname);
-		vector<LogEntry> SearchDaemon(string process_name);
-		vector<LogEntry> SearchSeverity(string severity);
-		vector<LogEntry> SearchKeyword(string keyword);
-		size_t CountKeyword(string keyword);
-		void Purge();
-		
+		unordered_map<int, Client> clients;
+ 
 		//network functions
 		int CreateSocket();
 		int EpollSocket(int sockfd);
-		void AcceptClients(int epollfd, int sockfd);
+		int AcceptClient(int epollfd, int sockfd);
 		void MonitorEvents(int epollfd, int sockfd);
-		void Send();
-		void Receive();
+		void SendResults(int sockfd, Client client);
+		bool ExtractMessage(Client* client, string* message);
+		void ReceiveLogs(Client* client, vector<string>* logs);
+		void ReceiveCommand(Client* client);
+		void DisconnectClient(int clientfd);
+		
+		void ReceiveLogData(Client* client);
 
 	public:
 		Server();

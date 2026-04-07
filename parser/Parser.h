@@ -11,6 +11,15 @@
 
 using namespace std;
 
+/*
+	Parser.h/cpp serves the log structure parsing, string manip
+	
+	facilitates:
+		- parsing and structuring log info from raw log string
+		- mapping of command types
+		- mapping several log-centric data
+*/
+
 typedef struct Process{
 	string name;
 	string arguments;
@@ -34,7 +43,7 @@ typedef struct Address{
 } Address;
 
 // for mapping severity levels based on index
-const string severity_level[] = {
+static const string severity_level[] = {
 	"EMERGENCY", // index 0: level 0 (emergency)
 	"ALERT",
 	"CRITICAL",
@@ -46,7 +55,7 @@ const string severity_level[] = {
 };
 
 // for mapping string keywords to severity
-const unordered_map<string, int> keyword_to_severity = {
+static const unordered_map<string, int> keyword_to_severity = {
     // emergency
     {"panic", 0}, {"emerg", 0}, 
     
@@ -75,7 +84,7 @@ const unordered_map<string, int> keyword_to_severity = {
 
 // command type map for faster command identification
 // useful for integer instead of string for comparions
-const unordered_map<string, int> command_type = {
+static const unordered_map<string, int> command_type = {
 	{"EXIT", -1},
 	{"INGEST", 0},
 	{"QUERY", 1},
@@ -83,7 +92,7 @@ const unordered_map<string, int> command_type = {
 };
 
 // query type map
-const unordered_map<string, int> query_type = {
+static const unordered_map<string, int> query_type = {
 	{"SEARCH_DATE", 0},
 	{"SEARCH_HOST", 1},
 	{"SEARCH_DAEMON", 2},
@@ -92,9 +101,7 @@ const unordered_map<string, int> query_type = {
 	{"COUNT_KEYWORD", 5}
 };
 
-// function prototypes
-size_t StripNetworkLog(string* str);
-		
+// function prototypes		
 string ToLower(string str);
 
 vector<string> Tokenize(string str);
@@ -104,5 +111,7 @@ string InferSeverity(vector<string> message);
 Address ExtractAddress(string address);
 		
 LogEntry ParseLog(string log);
+
+string ParseLog(LogEntry entry);
 
 #endif

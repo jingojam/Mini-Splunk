@@ -4,24 +4,6 @@ using namespace std;
 
 Client::Client(){}
 
-void Client::SendLogFile(string filename, int fd){
-	ifstream file(filename);
-	string line;
-	
-	if(file.is_open()){
-		while(getline(file, line)){
-			int length = line.length();
-			string msg = to_string(length) + " " + line; // octet counting
-			cout << msg << endl << endl;
-			int senddata = send(fd, msg.c_str(), msg.length(), 0);
-		}
-		file.close();
-		cout << "[STATUS] Successfully Ingested File." << endl;
-	} else{
-		cout << "[ERROR] File not Found." << endl;
-	}
-}
-
 void Client::CommandInterface(){
 	char command_buffer[1024];
 	int fd;
@@ -50,14 +32,10 @@ void Client::CommandInterface(){
 		// if command type is 0 (INGEST)
 		else if(it != command_type.end() && it->second == 0){
 			address = ExtractAddress(command_tokens[2]);
-			
-			if(fd = ConnectToServer(address.ip, address.port) != -1){
-				
-				// string command_msg = command_tokens[0] + " " + command_tokens[1];
-				// int senddata = send(fd, command_msg.c_str(), command_msg.length(), 0); 
-				
-				// SendLogFile(command_tokens[1], fd);
-				// // file ingest
+
+			if((fd = ConnectToServer(address.ip, address.port)) != -1){
+				SendData(fd, command);
+				SendLogFile(command_tokens[1], fd);
 			}
 		} 
 		
@@ -65,6 +43,42 @@ void Client::CommandInterface(){
 	}
 	close(fd);
 	cout << "[STATUS] Disconnected from Server." << endl;
+}
+
+void Client::SendLogFile(string filename, int fd){
+	ifstream file(filename);
+	string line;
+	
+	if(file.is_open()){
+		while(getline(file, line)){
+			SendData(fd, line);
+		}
+		file.close();
+		
+		SendData(fd, "DONE");
+		cout << "[STATUS] Successfully Ingested File." << endl;
+	} else{
+		cout << "[ERROR] File not Found." << endl;
+	}
+}
+
+void Client::SendData(int sockfd, string data){
+    string message = to_string(data.length()) + " " + data;
+    
+    const char* ptr = message.c_str();
+    size_t total_len = message.length();
+    size_t total_sent = 0;
+
+    while(total_sent < total_len){
+        //offset the pointer by the number of bytes already sent
+        size_t sent = send(sockfd, ptr + total_sent, total_len - total_sent, 0);
+        
+        if(sent == -1){
+            return;
+        }
+        
+        total_sent += sent;
+    }
 }
 
 int Client::ConnectToServer(string server_ip, uint16_t port){

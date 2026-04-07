@@ -12,141 +12,6 @@ Server::Server(string ip_address, uint16_t port){
     this->ip_address.sin_port = htons(port); // must be in network bytes (big endian)
 }
 
-// INGEST function for parsing and indexing of log entries
-void Server::Ingest(){
-	// acquire a unique lock for exclusive access (WRITE to shared data)
-	unique_lock lock(worker_mutex);
-	// critical section
-	// lock is automatically released
-}
-
-// PURGE function for deleting log entries
-void Server::Purge(){
-	// acquire a unique lock for exclusive access (WRITE to shared data)
-	unique_lock lock(worker_mutex);
-	/*
-		critical section: erase() indexes and central log list
-	*/
-	// lock is automatically released
-}
-
-// function for date lookips
-vector<LogEntry> Server::SearchDate(string date){
-	// acquire a shared lock
-	shared_lock lock(worker_mutex);
-	vector<LogEntry> logs;
-	
-	// try to find the date key
-	auto it = this->date_index.find(date);
-
-	// if date key is found
-	if(it != this->date_index.end()){
-		// iterate on the index list and add the corresponding indexed log 
-		for(size_t i = 0; i < it->second.size(); i++){
-			logs.push_back(this->log_file[it->second[i]]);
-		}
-	}
-	
-	// lock is automatically released
-	return logs;
-}
-
-// function for hostname lookups
-vector<LogEntry> Server::SearchHost(string hostname){
-	// acquire a shared lock
-	shared_lock lock(worker_mutex);
-	vector<LogEntry> logs;
-	
-	// try to find the hostname key
-	auto it = this->host_index.find(hostname);
-	
-	// if hostname key is found
-	if(it != this->host_index.end()){
-		// iterate on the index list and add the corresponding indexed log 
-		for(size_t i = 0; i < it->second.size(); i++){
-			logs.push_back(this->log_file[it->second[i]]);
-		}
-	}
-	
-	// lock is automatically released
-	return logs;
-}
-
-// function for process/daemon lookups
-vector<LogEntry> Server::SearchDaemon(string process_name){
-	// acquire a shared lock
-	shared_lock lock(worker_mutex);
-	vector<LogEntry> logs;
-	
-	// try to find the process name key
-	auto it = this->daemon_index.find(process_name);
-	
-	// if process key is found
-	if(it != this->daemon_index.end()){
-		// iterate on the index list and add the corresponding indexed log 
-		for(size_t i = 0; i < it->second.size(); i++){
-			logs.push_back(this->log_file[it->second[i]]);
-		}
-	}
-	
-	// lock is automatically released
-	return logs;
-}
-
-// function for severity level lookups
-vector<LogEntry> Server::SearchSeverity(string severity){
-	// acquire a shared lock
-	shared_lock lock(worker_mutex);
-	vector<LogEntry> logs;
-	
-	// try to find the severity key
-	auto it = this->severity_index.find(severity);
-	
-	// if severity key is found
-	if(it != this->severity_index.end()){
-		// iterate on the index list and add the corresponding indexed log 
-		for(size_t i = 0; i < it->second.size(); i++){
-			logs.push_back(this->log_file[it->second[i]]);
-		}
-	}
-	
-	// lock is automatically released
-	return logs;
-}
-
-// function for keyword lookups
-vector<LogEntry> Server::SearchKeyword(string keyword){
-	// acquire (P()) a shared lock
-	shared_lock lock(worker_mutex);
-	vector<LogEntry> logs;
-
-	// critical section
-	// obtain an iterator to the first token in the keyword
-	auto it = this->keyword_index.find(Tokenize(keyword)[0]);
-	
-	// if it exists
-	if(it != this->keyword_index.end()){
-		// for every syslog mapped to contain the first word
-		for(size_t i = 0; i < it->second.size(); i++){
-
-			// store if the entire queried string is a substring in the log
-			if(this->log_file[it->second[i]].message.find(keyword) != string::npos){
-				logs.push_back(this->log_file[it->second[i]]);
-			}
-			
-		}
-	}
-
-	// lock is automatically released (V())
-	return logs;
-}
-
-// function for keyword counting
-size_t Server::CountKeyword(string keyword){
-	// simply return the size using SearchHost() vector
-	return static_cast<size_t>(SearchHost(keyword).size());
-}
-
 // function for creating a socket instance
 //  returns a socket file descriptor, otherwise a negative integer meaning error creating socket
 int Server::CreateSocket(){
@@ -190,22 +55,16 @@ int Server::EpollSocket(int sockfd){
 	// otherwise return the epoll instance file descriptor
 	return epollfd;
 }
-
-void Server::AcceptClients(int epollfd, int sockfd){
+// function for adding client fds to interest list
+int Server::AcceptClient(int epollfd, int sockfd){
 	struct sockaddr_in client_address;
 	socklen_t client_address_length = sizeof(client_address);
 	struct epoll_event event;
 	int clientfd;
 	Client client;
-	
+	  
 	// accept the client
 	if((clientfd = accept(sockfd, (struct sockaddr*)&client_address, &client_address_length)) != -1){
-		client.fd = clientfd;
-		client.command = "";
-			
-		// store the client for further processing
-		this->clients.push_back(client);
-			
 		// set the client socket to nonblocking
 		fcntl(clientfd, F_SETFL, O_NONBLOCK);
 			
@@ -214,7 +73,7 @@ void Server::AcceptClients(int epollfd, int sockfd){
 			
 		// add the client socket to interest list
 		if(epoll_ctl(epollfd, EPOLL_CTL_ADD, clientfd, &event) == -1){
-			return;
+			return -1;
 		}
 		cout << "[STATUS] Client connected at " << inet_ntoa(client_address.sin_addr) << ":" << to_string(client_address.sin_port) << "\n";
 		
@@ -222,13 +81,15 @@ void Server::AcceptClients(int epollfd, int sockfd){
 		// if accept returns -1, means no clients connecting, accept returns an errno
 		//  and if errno is EAGAIN or EWOULDBLOCK, queue is empty
 		if(errno == EAGAIN || errno == EWOULDBLOCK){
-			return;
+			return 0;
 		}
 	}
+	
+	return clientfd;
 }
 
 void Server::MonitorEvents(int epollfd, int sockfd){
-	int fd, fds;
+	int fd, fds, clientfd;
 	struct epoll_event events[10];
 	
 	while(true){
@@ -241,8 +102,63 @@ void Server::MonitorEvents(int epollfd, int sockfd){
 			
 			// event is oon the server socket (new connection requested to be established)
 			if(fd == sockfd){
-				AcceptClients(epollfd, sockfd);
-				break;
+				clientfd = AcceptClient(epollfd, sockfd);
+				
+				if(clientfd > 0){
+					Client new_client;
+					new_client.fd = clientfd;
+					clients[clientfd] = new_client;
+				}
+			}
+			
+			else if(events[i].events & EPOLLIN){
+				auto it = clients.find(fd);
+				
+				if(it != clients.end()){
+					char temp_buf[1024];
+					
+					// 1. Read all available bytes from the network
+					int bytes = recv(fd, temp_buf, sizeof(temp_buf), 0);
+					
+					if(bytes <= 0){
+						DisconnectClient(fd);
+						clients.erase(it);
+						continue;
+					}
+					
+					// Dump the bytes into the client's persistent buffer
+					it->second.buffer.append(temp_buf, bytes);
+					
+					string message;
+					
+					// 2. Process the buffer one message at a time
+					// This loop safely handles state changes mid-buffer!
+					while(ExtractMessage(&it->second, &message)){
+						
+						// Are we currently listening for commands?
+						if(it->second.ingest == false){
+							vector<string> tokens = Tokenize(message);
+
+							auto cmd_it = command_type.find(tokens[0]);
+							
+							if(cmd_it != command_type.end() && cmd_it->second == 0){
+								it->second.ingest = true;
+								cout << "[STATUS] Switching to INGEST mode.\n";
+							}
+							// Handle PURGE, QUERY, etc. here...
+						} 
+						else {
+							if(message == "DONE"){
+								it->second.ingest = false;
+								cout << "[STATUS] Finished ingesting. Back to COMMAND mode.\n";
+							} 
+							else {
+								cout << "[LOG] " << message << "\n\n";
+								it->second.logs.push_back(message);
+							}
+						}
+					}
+				}
 			}
 		}
 	}
@@ -273,4 +189,90 @@ void Server::Start(){
 
 	close(sockfd);
 	close(epollfd);
+}
+
+bool Server::ExtractMessage(Client* client, string* message){
+    size_t space_pos = client->buffer.find(' ');
+		
+    if(space_pos == string::npos){ 
+		return false; //need more data to find the length
+	}
+
+    try{
+		// get the length prefix (just before the first white space)
+        string message_prefix = client->buffer.substr(0, space_pos);
+        size_t prefix_length = stoul(message_prefix);
+            
+        // total size = <length of message> + " " + <message>
+        size_t total_expected = space_pos + 1 + prefix_length;
+
+		// if message received is shorter than expected
+        if(client->buffer.length() < total_expected){
+            return false; // must only consider enough data
+        }
+
+		//extract the actual log message (without the length prefix)
+        *message = client->buffer.substr(space_pos + 1, prefix_length);
+
+        //remove the processed packet from the buffer
+        client->buffer.erase(0, total_expected);
+        return true;
+    } catch(...){
+        client->buffer.clear();
+        return false;
+    }
+}
+
+// void Server::ReceiveCommand(Client* client){
+    // char temp_buf[1024];
+	
+    // int bytes = recv(client->fd, temp_buf, sizeof(temp_buf), 0);
+
+    // if(bytes <= 0){
+        // return;
+    // }
+
+    // client->buffer.append(temp_buf, bytes);
+
+	// string command;
+
+    // while(ExtractMessage(client, &command)){
+		// // process it
+		// vector<string> tokens = Tokenize(command);
+		// auto it = command_type.find(tokens[0]);
+		
+		// if(it != command_type.end() && it->second == 0){
+			// client->ingest = true;
+		// }
+	// }
+// }
+
+// void Server::ReceiveLogs(Client* client, vector<string>* logs){
+    // char temp_buf[1024];
+	
+    // int bytes = recv(client->fd, temp_buf, sizeof(temp_buf), 0);
+
+    // if(bytes <= 0){
+        // return;
+    // }
+
+    // client->buffer.append(temp_buf, bytes);
+
+	// string log;
+
+	// while(ExtractMessage(client, &log)){
+		// // check if the client is signaling the end of the file
+		// if(log == "DONE"){
+			// client->ingest = false;
+		// } 
+		// // otherwise, treat it as a normal log line
+		// else{
+			// cout << log << "\n\n";
+			// logs->push_back(log);
+		// }
+	// }
+// }
+
+void Server::DisconnectClient(int clientfd){
+	close(clientfd);
 }
