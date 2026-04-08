@@ -22,6 +22,11 @@ int Server::CreateSocket(){
 		return -1; // -1 means socket instance was not created succesfully
 	}
 
+	int option = 1; // reuse socket for bind
+	if(setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) < 0){
+		cout << "[ERROR] Failed to reuse socket.\n";
+    }
+
 	// bind the socket to the server IP and port
 	if(bind(sockfd, (struct sockaddr*)&this->ip_address, sizeof(this->ip_address)) == -1){
 		return -2; // -2 means socket instance was created but failed to bind to server
