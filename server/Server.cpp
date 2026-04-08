@@ -150,12 +150,12 @@ void Server::MonitorEvents(int epollfd, int sockfd){
 							// QUERY COMMAND
 							else if(cmd_it != command_type.end() && cmd_it->second == 1){
 								// make sure that it has enough tokens to avoid crashing
-								if(tokens.size() >= 4) { 
+								if(tokens.size() >= 4){ 
 									auto type_it = query_type.find(tokens[2]);
 									string keyword;
 									
 									for(size_t i = 3; i < tokens.size(); i++){
-										if(i != 5){
+										if(i != tokens.size()){
 											keyword += " ";
 										}
 											
@@ -184,11 +184,18 @@ void Server::MonitorEvents(int epollfd, int sockfd){
 												SearchSeverity(search_term, &query_results);
 											} else if(q_type == 4){
 												SearchKeyword(search_term, &query_results);
-											} 
+											} else if(q_type == 5){
+												size_t count;
+												CountKeyword(search_term, &count);
+												string res = "\"" + search_term + "\"" + " found in " + to_string(count) + " logs.";
+												this->SendData(fd, res);
+											}
 											
 											//send the results back to the client
-											for(size_t j = 0; j < query_results.size(); j++){
-												this->SendData(fd, query_results[j]);
+											if(q_type != 5){
+												for(size_t j = 0; j < query_results.size(); j++){
+													this->SendData(fd, query_results[j]);
+												}
 											}
 											
 											//let client know that's all
