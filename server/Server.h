@@ -37,7 +37,6 @@ typedef struct Client{
 	int fd; // client socket file descriptor
 	string buffer; // client buffer
 	bool ingest = false; // if client wants to ingest
-	bool query = false;
 	vector<string> logs;
 } Client;
 
@@ -59,10 +58,10 @@ class Server{
 		void MonitorEvents(int epollfd, int sockfd);
 		void SendResults(int sockfd, Client client);
 		bool ExtractMessage(Client* client, string* message);
-		void ReceiveLogs(Client* client, vector<string>* logs);
-		void ReceiveCommand(Client* client);
+		// void ReceiveLogs(Client* client, vector<string>* logs);
+		// void ReceiveCommand(Client* client);
+		void SendData(int sockfd, string data);
 		void DisconnectClient(int clientfd);
-		
 		void ReceiveLogData(Client* client);
 
 	public:

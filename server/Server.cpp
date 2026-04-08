@@ -65,8 +65,6 @@ int Server::AcceptClient(int epollfd, int sockfd){
 	  
 	// accept the client
 	if((clientfd = accept(sockfd, (struct sockaddr*)&client_address, &client_address_length)) != -1){
-		// set the client socket to nonblocking
-		fcntl(clientfd, F_SETFL, O_NONBLOCK);
 			
 		event.data.fd = clientfd;
 		event.events = EPOLLIN;
@@ -100,7 +98,7 @@ void Server::MonitorEvents(int epollfd, int sockfd){
 		for(size_t i = 0; i < fds; i++){
 			fd = events[i].data.fd; // get the file descriptor from the epoll event
 			
-			// event is oon the server socket (new connection requested to be established)
+			// event is on the server socket (new connection requested to be established)
 			if(fd == sockfd){
 				clientfd = AcceptClient(epollfd, sockfd);
 				
@@ -117,43 +115,118 @@ void Server::MonitorEvents(int epollfd, int sockfd){
 				if(it != clients.end()){
 					char temp_buf[1024];
 					
-					// 1. Read all available bytes from the network
+					// read all available byteS of data from the network
 					int bytes = recv(fd, temp_buf, sizeof(temp_buf), 0);
 					
+					// no data
 					if(bytes <= 0){
 						DisconnectClient(fd);
 						clients.erase(it);
 						continue;
 					}
 					
-					// Dump the bytes into the client's persistent buffer
+					//store into the client's persistent buffer
 					it->second.buffer.append(temp_buf, bytes);
 					
 					string message;
 					
-					// 2. Process the buffer one message at a time
-					// This loop safely handles state changes mid-buffer!
+					// process the buffer one message at a time
 					while(ExtractMessage(&it->second, &message)){
 						
-						// Are we currently listening for commands?
+						// ingest client flag is not set, so it's querying only
 						if(it->second.ingest == false){
 							vector<string> tokens = Tokenize(message);
+							
+							// safety check to avoid undefiend behavior due to empty commands
+							if(tokens.empty()) continue; 
 
 							auto cmd_it = command_type.find(tokens[0]);
 							
+							// INGEST COMMAND so set the client flag
 							if(cmd_it != command_type.end() && cmd_it->second == 0){
 								it->second.ingest = true;
-								cout << "[STATUS] Switching to INGEST mode.\n";
 							}
-							// Handle PURGE, QUERY, etc. here...
+							
+							// QUERY COMMAND
+							else if(cmd_it != command_type.end() && cmd_it->second == 1){
+								// make sure that it has enough tokens to avoid crashing
+								if(tokens.size() >= 4) { 
+									auto type_it = query_type.find(tokens[2]);
+									string keyword;
+									
+									for(size_t i = 3; i < tokens.size(); i++){
+										if(i != 5){
+											keyword += " ";
+										}
+											
+										keyword += tokens[i];
+									}
+									
+									RemoveQuotes(&keyword);
+									cout << keyword << "\n";
+									
+									// make sre the query type exists
+									if(type_it != query_type.end()){
+										int q_type = type_it->second;
+										string search_term = keyword;
+										
+										std::thread query_thread([this, fd, q_type, search_term]() {
+											//temporary vector to hold the results
+											vector<string> query_results; 
+											
+											if(q_type == 0){
+												SearchDate(search_term, &query_results);
+											} else if(q_type == 1){
+												SearchHost(search_term, &query_results);
+											} else if(q_type == 2){
+												SearchDaemon(search_term, &query_results);
+											} else if(q_type == 3){
+												SearchSeverity(search_term, &query_results);
+											} else if(q_type == 4){
+												SearchKeyword(search_term, &query_results);
+											} 
+											
+											//send the results back to the client
+											for(size_t j = 0; j < query_results.size(); j++){
+												this->SendData(fd, query_results[j]);
+											}
+											
+											//let client know that's all
+											this->SendData(fd, "END_QUERY");
+											cout << "[STATUS] Query thread finished. Sent " << query_results.size() << " logs.\n";
+										});
+										
+										query_thread.join();
+									}
+								}
+							}
+							
+							// PURGE COMMAND
+							else if(cmd_it != command_type.end() && cmd_it->second == 2){
+								cout << "[STATUS] Executing PURGE command...\n";
+								
+								std::thread purge_thread([this, fd]() {
+									Purge(); 
+									this->SendData(fd, "PURGE_COMPLETE"); 
+									cout << "[STATUS] Purge thread finished.\n";
+								});
+								
+								purge_thread.join();
+							}
+							
 						} 
-						else {
+						// client wants to INGEST logs (client ingest flag is set)
+						else{
 							if(message == "DONE"){
 								it->second.ingest = false;
-								cout << "[STATUS] Finished ingesting. Back to COMMAND mode.\n";
-							} 
-							else {
-								cout << "[LOG] " << message << "\n\n";
+								
+								// assign a thread for ingest
+								std::thread ingest_thread(Ingest, std::move(it->second.logs));
+								ingest_thread.join();
+								
+								cout << "[STATUS] Ingested Logs.\n";
+							} else{
+								//store normal log lines in temporary vector
 								it->second.logs.push_back(message);
 							}
 						}
@@ -191,6 +264,27 @@ void Server::Start(){
 	close(epollfd);
 }
 
+void Server::SendData(int sockfd, string data){
+    string message = to_string(data.length()) + " " + data;
+    
+    const char* ptr = message.c_str();
+    size_t total_len = message.length();
+    size_t total_sent = 0;
+
+    while(total_sent < total_len){
+        ssize_t sent = send(sockfd, ptr + total_sent, total_len - total_sent, 0);
+        
+        if(sent == -1){
+            if(errno == EAGAIN || errno == EWOULDBLOCK){
+                continue;
+            }
+            return; // real error
+        }
+        
+        total_sent += sent;
+    }
+}
+
 bool Server::ExtractMessage(Client* client, string* message){
     size_t space_pos = client->buffer.find(' ');
 		
@@ -222,56 +316,6 @@ bool Server::ExtractMessage(Client* client, string* message){
         return false;
     }
 }
-
-// void Server::ReceiveCommand(Client* client){
-    // char temp_buf[1024];
-	
-    // int bytes = recv(client->fd, temp_buf, sizeof(temp_buf), 0);
-
-    // if(bytes <= 0){
-        // return;
-    // }
-
-    // client->buffer.append(temp_buf, bytes);
-
-	// string command;
-
-    // while(ExtractMessage(client, &command)){
-		// // process it
-		// vector<string> tokens = Tokenize(command);
-		// auto it = command_type.find(tokens[0]);
-		
-		// if(it != command_type.end() && it->second == 0){
-			// client->ingest = true;
-		// }
-	// }
-// }
-
-// void Server::ReceiveLogs(Client* client, vector<string>* logs){
-    // char temp_buf[1024];
-	
-    // int bytes = recv(client->fd, temp_buf, sizeof(temp_buf), 0);
-
-    // if(bytes <= 0){
-        // return;
-    // }
-
-    // client->buffer.append(temp_buf, bytes);
-
-	// string log;
-
-	// while(ExtractMessage(client, &log)){
-		// // check if the client is signaling the end of the file
-		// if(log == "DONE"){
-			// client->ingest = false;
-		// } 
-		// // otherwise, treat it as a normal log line
-		// else{
-			// cout << log << "\n\n";
-			// logs->push_back(log);
-		// }
-	// }
-// }
 
 void Server::DisconnectClient(int clientfd){
 	close(clientfd);

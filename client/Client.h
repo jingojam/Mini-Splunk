@@ -27,7 +27,9 @@ class Client{ // client inherits parsing methods
 		void SendLogFile(string filename, int fd);
 		int ConnectToServer(string ip, uint16_t port);
 		
+		bool ExtractMessage(string& buffer, string& message);
 		void SendData(int sockfd, string data);
+		void ReceiveQueryResults(int sockfd);
 	
 	public:
 		Client();

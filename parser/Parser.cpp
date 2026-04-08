@@ -1,5 +1,21 @@
 #include "Parser.h"
 
+void RemoveQuotes(string* str){
+    size_t open_quote_index = str->find('\"');
+
+	// get the first `"`
+
+    if(open_quote_index != string::npos){
+		// then the ssecond
+		size_t close_quote_index = str->find('\"', open_quote_index + 1);
+		
+		if(close_quote_index != string::npos){
+			// take only the string between the first and second `"` quoets
+			*str = str->substr(open_quote_index + 1, close_quote_index - open_quote_index - 1);
+		}
+    }
+}
+
 string ToLower(string str){
 	// transform string using tolower() lambda function
 	transform(str.begin(), str.end(), str.begin(), [](unsigned char c){return static_cast<char>(tolower(c));});
@@ -110,10 +126,10 @@ LogEntry ParseLog(string log){
 	
 	// reconstruct original message string throuhg concatenation
 	for(size_t i = 5; i < log_tokens.size(); i++){
-		if(i != log_tokens.size() - 1){
+		if(i != 5){
 			entry.message += " ";
 		}
-		
+			
 		entry.message += log_tokens[i];
 	}
 	

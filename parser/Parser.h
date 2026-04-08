@@ -101,7 +101,10 @@ static const unordered_map<string, int> query_type = {
 	{"COUNT_KEYWORD", 5}
 };
 
-// function prototypes		
+// function prototypes	
+
+void RemoveQuotes(string* str);
+	
 string ToLower(string str);
 
 vector<string> Tokenize(string str);
