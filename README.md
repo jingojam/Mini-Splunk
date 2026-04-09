@@ -6,6 +6,7 @@ The Project is compiled against `Ubuntu 22.04.5 LTS` using `g++` version `(Ubunt
 ## Overview
 The “Mini-Splunk” Syslog Analytics Server serves as a concurrent utility tool for managing multiple client TCP connections using Linux `epoll` event multiplexing simultaneously:
 - Handling reception of log file ingests from clients over a network
+- Extracting and structuring `RFC 3164` syslog formats
 - Parsing and structuring logs
 - Indexing and storing structured logs
 - Performing search (query) functions
