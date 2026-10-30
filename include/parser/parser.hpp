@@ -15,6 +15,8 @@ struct Log{
     std::string message;
 };
 
-
+class Parser{
+    
+};
 
 #endif

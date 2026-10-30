@@ -1,0 +1,53 @@
+Mini-Splunk Protocol
+
+Connection Establishment:
+- For clients initiating a network
+  connection to the server.
+
+Server			     Client
+  |			   	|
+  |<-------------HI-------------|
+  |			   	|
+  |				|
+  |------------HELLO----------->|
+  |				|
+  |			   	|
+  |~~~~~~~~~~~SESSION~~~~~~~~~~~|
+  |			   	|
+  |				|
+  |			   	|
+  |				|
+  v				v
+  
+Commands: 
+- Protocol used for issuing commands
+  to the server.
+
+INGEST
+Server			     Client
+  |			   	|
+  |<-------PLEASE INGEST--------|
+  |			   	|
+  |				|
+  |-------------SURE----------->|
+  |				|
+  |			   	|
+  |<------------LOGS------------|
+  |			   	|
+  |<------------LOGS------------|
+  |			   	|
+  |<------------LOGS------------|
+  v				v
+  
+PURGE
+ 
+WAIT
+ - For the server to notify clients 
+   that a destructive operation is 
+   currently being performed by the
+   server.
+ 
+NEVERMIND
+- For clients to notify the server
+  with the intention of canceling
+  a previous command.
