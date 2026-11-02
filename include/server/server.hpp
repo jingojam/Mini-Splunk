@@ -9,12 +9,16 @@
 #include <cstring>
 #include <sys/socket.h>
 #include <arpa/inet.h>
-
+#include <fcntl.h>
 #include <sys/epoll.h>
 
 #include "../../src/parser/parser.cpp"
 
-static const uint8_t MAX_CONNECTION_QUEUE = 32;
+// just an arbitrary constant I made up
+static const uint8_t MAX_CONNECTIONS = 32;
+
+// arbitrary constant as per the linux epoll man page
+static const uint8_t MAX_EVENTS = 10;
 
 /**
  * Master Log Vector (Shared)
@@ -40,10 +44,14 @@ class Server{
 
         int RegisterServer();
 
-        int EpollEvent();
+        void EpollEvent();
 
     public:
         Server(std::string& ip_address, uint16_t& port);
+
+        int SendData();
+
+        int ReceiveData();
 
         void Start();
 };

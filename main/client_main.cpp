@@ -1,7 +1,10 @@
 #include <iostream>
 #include <string>
-#include "../src/client/client.cpp"
+#include "../include/client/client.hpp"
 
-int main(int argc, char* argv[]){
+int main(){
+    Client client;
+    
+    client.Start();
     return 0;
 }

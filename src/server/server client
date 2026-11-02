@@ -1,0 +1,57 @@
+server              client
+   |                   |
+  socket()            socket() 
+   |                   |
+  bind()               |
+   |                   |
+  listen()             |
+   |                   |
+  accept() <--------- connect()
+   |                   |
+  recv() <----------- send() 
+   |                   |
+  send() -----------> recv()
+   |                   |
+  recv() <-- EOF ---- close()
+   |                   |
+  close()              |
+   |                   |
+   v                   v
+
+protocol
+
+INGEST LOOP
+server                  client
+  |                        |
+  |                     Ingest()------|
+  |                                   |
+ ReceiveData() <------- SendData()<---|
+  |                        |
+  | <------- END <---------|
+  v                        v
+
+QUERY LOOP
+server                  client
+  |                        |
+  |                     Query()-------|
+  |                                   |
+ ReceiveData() <------- SendData()<---|
+  |                        |
+|-Search()                 |
+|                          |
+|>SendData() ---------> ReceiveData()
+  |                        |
+  | --------> END------->  |
+  v                        v
+
+PURGE LOOP
+server                  client
+  |                        |
+  |                     IPURGE()------|
+  |                                   |
+ ReceiveData() <------- SendData()<---|
+  |                        |
+ PURGE()                   |
+  |                        |
+  | --------> END -------> |
+  v                        v
