@@ -34,6 +34,11 @@ static const std::unordered_map<std::string, std::vector<int>> DAEMON_INDEX;
 static const std::unordered_map<std::string, std::vector<int>> SEVERITY_INDEX;
 static const std::unordered_map<std::string, std::vector<int>> KEYWORD_INDEX;
 
+struct Client{
+    int fd;
+    std::string buf;
+};
+
 class Server{
     private:
         int server_fd;
@@ -49,7 +54,7 @@ class Server{
     public:
         Server(std::string& ip_address, uint16_t& port);
 
-        int SendData();
+        ssize_t SendData();
 
         int ReceiveData();
 

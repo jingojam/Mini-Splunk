@@ -74,28 +74,31 @@ void Server::EpollEvent(){
 
             // event on the server socket
             if(fd == this->server_fd){
-                struct sockaddr_in addr;
-                socklen_t addrlen = sizeof(addr);
-                struct epoll_event event;
+                //all pending connections
+                while(1){
+                    struct sockaddr_in addr;
+                    socklen_t addrlen = sizeof(addr);
+                    struct epoll_event event;
 
-                // get the client socket file desc from connection
-                int client_fd = accept4(this->server_fd, (struct sockaddr*)&addr, &addrlen, SOCK_NONBLOCK);
+                    // get the client socket file desc from connection
+                    int client_fd = accept4(this->server_fd, (struct sockaddr*)&addr, &addrlen, SOCK_NONBLOCK);
 
-                event.data.fd = client_fd;
-                event.events = EPOLLIN;
+                    event.data.fd = client_fd;
+                    event.events = EPOLLIN;
 
-                if(client_fd < 0){
-                    if(errno == EAGAIN || errno == EWOULDBLOCK){
-                        continue;
+                    if(client_fd < 0){
+                        if(errno == EAGAIN || errno == EWOULDBLOCK){
+                            break;
+                        }
+                        break;
                     }
-                    continue;
-                }
 
-                // add client file desc to epoll interest list
-                if(epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, &event) < 0){
-                    std::cerr << "[ERROR] Failed To Add Client Socket File Descriptor to Interest List.\n";
-                } else{
-                    std::cout << "[STATUS] Client Connected\n";
+                    // add client file desc to epoll interest list
+                    if(epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, &event) < 0){
+                        std::cerr << "[ERROR] Failed To Add Client Socket File Descriptor to Interest List.\n";
+                    } else{
+                        std::cout << "[STATUS] Client Connected\n";
+                    }
                 }
             // event is from an existing client socket file desc in the interest list 
             } else{
@@ -111,9 +114,15 @@ void Server::EpollEvent(){
     }
 }
 
-// int Server::SendData(){
+int Server::SendData(int fd, std::string data){
+    uint32_t prefix = htonl(data.length());
 
-// }
+    std::string msg = std::to_string(prefix) + " " + data;
+
+    ssize_t bytes_sent = send(fd, msg.c_str(), msg.length(), 0);
+
+    return bytes_sent;
+}
 
 // int Server::ReceiveData(){
     
