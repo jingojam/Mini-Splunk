@@ -14,7 +14,8 @@ std::vector<std::string> Tokenize(std::string& log){
 
 struct Log ParseLog(std::string& log){
     std::vector<std::string> log_tokens = Tokenize(log);
-    
+    Log l;
+
     
 }
 
