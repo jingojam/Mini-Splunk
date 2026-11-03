@@ -8,12 +8,24 @@
 #include <stringstream>
 
 /**
- * Index Structure
+ * Daemon structure
+ *  argument field corresponds to
+ *  extra inner value inside the square brackets
+ *   if the log daemon field has any.
+ */
+struct Daemon{
+    std::string name;
+    std::string argument;
+};
+
+/**
+ * Log Structure
  */
 struct Log{
     std::string date;
+    std::string timestamp;
     std::string host;
-    std::string daemon;
+    struct Daemon daemon;
     std::string severity;
     std::string message;
 };
@@ -44,6 +56,6 @@ static const std::unordered_map<std::string, uint8_t> SEVERITY_KEYWORDS = {
 std::vector<std::string> Tokenize(std::string& log);
 struct Log ParseLog(std::string& log);
 std::string StringifyLog(struct Log& log);
-uint8_t InferSeverity()
+uint8_t InferSeverity(std::vector<std::string> message);
 
 #endif
