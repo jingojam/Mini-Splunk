@@ -6,8 +6,8 @@ Server::Server(std::string& ip_address, uint16_t& port){
     this->ip_address = ip_address;
     this->port = port;
 
-    // we need a socket for standard TCP/IPv4 transport
-    int fd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
+    // UDP socket for RFC 3164
+    int fd = socket(AF_INET, SOCK_DGRAM | SOCK_NONBLOCK, 0);
 
     if(fd == -1){
         std::cerr << "[ERROR] Cannot Create Socket.\n";
@@ -60,73 +60,62 @@ int Server::RegisterServer(){
     return ctl_stat;
 }   
 
+void Server::Manifold(std::string& command){
+    struct Command c = IdentifyCommand(command);
+
+    switch(c.type){
+         case 0:
+            //ingest
+            break;
+        case 1:
+            //purge
+            break;
+        case 2:
+            //search_date
+            break;
+        case 3:
+            //search_host
+            break;
+        case 4:
+            //search_daemon
+            break;
+        case 5:
+            //search_severity
+            break;
+        case 6:
+            //search_keyword
+            break;
+        case 7:
+            //count keyword
+            break;
+        default:
+            break;
+    }
+}
+
 void Server::EpollEvent(){
     struct epoll_event events[MAX_EVENTS];
-    int i;
+    int i, num_fds;
 
     // event loop
     while(1){
-        int num_fds = epoll_wait(this->epoll_fd, events, MAX_EVENTS, 0);
+        num_fds = epoll_wait(this->epoll_fd, events, MAX_EVENTS, 0);
 
         for(i = 0; i < num_fds; i++){
-            // get the file desc of the events (linearly)
-            int fd = events[i].data.fd;
+            // event on the server socket (data incoming)
+            if(events[i].data.fd == this->server_fd){
+                struct sockaddr_in addr;
+                socklen_t addrlen = sizeof(addr);
+                char buf[MAX_DATA_SIZE];
 
-            // event on the server socket
-            if(fd == this->server_fd){
-                //all pending connections
-                while(1){
-                    struct sockaddr_in addr;
-                    socklen_t addrlen = sizeof(addr);
-                    struct epoll_event event;
+                ssize_t data = recvfrom(this->server_fd, buf, MAX_DATA_SIZE, 0, (struct sockaddr*)&addr, &addrlen);
+                std::string command(buf);
 
-                    // get the client socket file desc from connection
-                    int client_fd = accept4(this->server_fd, (struct sockaddr*)&addr, &addrlen, SOCK_NONBLOCK);
-
-                    event.data.fd = client_fd;
-                    event.events = EPOLLIN;
-
-                    if(client_fd < 0){
-                        if(errno == EAGAIN || errno == EWOULDBLOCK){
-                            break;
-                        }
-                        break;
-                    }
-
-                    // add client file desc to epoll interest list
-                    if(epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, &event) < 0){
-                        std::cerr << "[ERROR] Failed To Add Client Socket File Descriptor to Interest List.\n";
-                    } else{
-                        std::cout << "[STATUS] Client Connected\n";
-                    }
-                }
-            // event is from an existing client socket file desc in the interest list 
-            } else{
-                
-                // client socket is ready for input
-                if(events[i].events & EPOLLIN){
-
-                } else if(events[i].events & EPOLLOUT){ // for output
-
-                }
+                Manifold(command);
             }
         }
     }
 }
-
-int Server::SendData(int fd, std::string data){
-    uint32_t prefix = htonl(data.length());
-
-    std::string msg = std::to_string(prefix) + " " + data;
-
-    ssize_t bytes_sent = send(fd, msg.c_str(), msg.length(), 0);
-
-    return bytes_sent;
-}
-
-// int Server::ReceiveData(){
-    
-// }
 
 void Server::Start(){
     int l = listen(this->server_fd, MAX_CONNECTIONS);

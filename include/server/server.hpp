@@ -7,6 +7,8 @@
 #include <vector>
 #include <cstdint>
 #include <cstring>
+#include <thread>
+#include <shared_mutex>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
@@ -15,7 +17,7 @@
 #include "../../src/parser/parser.cpp"
 
 // just an arbitrary constant I made up
-static const uint8_t MAX_CONNECTIONS = 32;
+static const uint8_t MAX_DATA_SIZE = 65535;
 
 // arbitrary constant as per the linux epoll man page
 static const uint8_t MAX_EVENTS = 10;
@@ -26,7 +28,7 @@ static const uint8_t MAX_EVENTS = 10;
 static const std::vector<Log> MASTER;
 
 /**
- * Master Log Index Mappings (Shared)
+ * Master Log Index Mappings (Shared Resource)
  */
 static const std::unordered_map<std::string, std::vector<int>> DATE_INDEX;
 static const std::unordered_map<std::string, std::vector<int>> HOST_INDEX;
@@ -51,12 +53,26 @@ class Server{
 
         void EpollEvent();
 
+        void Manifold(std::string command);
+
     public:
         Server(std::string& ip_address, uint16_t& port);
 
-        ssize_t SendData();
+        bool Ingest(std::string& argument);
 
-        int ReceiveData();
+        bool Purge();
+
+        std::vector<std::string> SearchDate(std::string& argument);
+
+        std::vector<std::string> SearchHost(std::string& argument);
+
+        std::vector<std::string> SearchDaemon(std::string& argument);
+
+        std::vector<std::string> SearchSeverity(std::string& argument);
+
+        std::vector<std::string> SearchKeyword(std::string& argument);
+
+        std::vector<std::string> CountKeyword(std::string& argument);
 
         void Start();
 };
