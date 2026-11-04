@@ -30,6 +30,34 @@ struct Log{
     std::string message;
 };
 
+/**
+ * Decision Map
+ */
+static constexpr int8_t INGEST = 0;
+static constexpr int8_t PURGE = 1;
+static constexpr int8_t SEARCH_DATE = 2;
+static constexpr int8_t SEARCH_HOST = 3;
+static constexpr int8_t SEARCH_DAEMON = 4;
+static constexpr int8_t SEARCH_SEVERITY = 5;
+static constexpr int8_t SEARCH_KEYWORD = 6;
+static constexpr int8_t COUNT_KEYWORD = 7;
+
+std::unordered_map<std::string, int8_t> COMMANDS = {
+    {"INGEST", INGEST},
+    {"PURGE", PURGE},
+    {"SEARCH_DATE", SEARCH_DATE},
+    {"SEARCH_HOST", SEARCH_HOST},
+    {"SEARCH_DAEMON", SEARCH_DAEMON},
+    {"SEARCH_SEVERITY", SEARCH_SEVERITY},
+    {"SEARCH_KEYWORD", SEARCH_KEYWORD},
+    {"COUNT_KEYWORD", COUNT_KEYWORD}
+};
+
+struct Command{
+    int8_t type;
+    std::string argument;
+};
+
 static constexpr uint8_t EMERGENCY = 0;
 static constexpr uint8_t ALERT = 1;
 static constexpr uint8_t CRITICAL = 2;
@@ -57,5 +85,6 @@ std::vector<std::string> Tokenize(std::string& log);
 struct Log ParseLog(std::string& log);
 std::string StringifyLog(struct Log& log);
 uint8_t InferSeverity(std::vector<std::string> message);
+struct Command IdentifyCommand(std::string& command);
 
 #endif

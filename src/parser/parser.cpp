@@ -80,3 +80,23 @@ uint8_t InferSeverity(std::vector<std::string> message){
 
     return severity;
 }
+
+struct Command IdentifyCommand(std::string& command){
+    struct Command c;
+    // look for the first space (first word is before the 1st space)
+    size_t space_pos = command.find(' ');
+
+    if(space_pos != std::string::npos){
+        auto it = COMMANDS.find(command.substr(0, space_pos));
+
+        if(it != COMMANDS.end()){
+            c.type = it->second;
+            c.argument = command.substr(space_pos, command.length() - space_pos - 1);
+        } else{ 
+            c.type = -1;
+            c.argumenr = "";
+        }
+    }
+
+    return c;
+}
