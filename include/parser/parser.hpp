@@ -5,13 +5,15 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include <stringstream>
+#include <string_view>
+#include <sstream>
+#include <cstdint>
 
 /**
  * Daemon structure
  *  argument field corresponds to
- *  extra inner value inside the square brackets
- *   if the log daemon field has any.
+ *  extra inner value enclosed by square brackets
+ *  if the log daemon field has any.
  */
 struct Daemon{
     std::string name;
@@ -31,33 +33,8 @@ struct Log{
 };
 
 /**
- * Decision Map
+ * SYslog severity levels
  */
-static constexpr int8_t INGEST = 0;
-static constexpr int8_t PURGE = 1;
-static constexpr int8_t SEARCH_DATE = 2;
-static constexpr int8_t SEARCH_HOST = 3;
-static constexpr int8_t SEARCH_DAEMON = 4;
-static constexpr int8_t SEARCH_SEVERITY = 5;
-static constexpr int8_t SEARCH_KEYWORD = 6;
-static constexpr int8_t COUNT_KEYWORD = 7;
-
-std::unordered_map<std::string, int8_t> COMMANDS = {
-    {"INGEST", INGEST},
-    {"PURGE", PURGE},
-    {"SEARCH_DATE", SEARCH_DATE},
-    {"SEARCH_HOST", SEARCH_HOST},
-    {"SEARCH_DAEMON", SEARCH_DAEMON},
-    {"SEARCH_SEVERITY", SEARCH_SEVERITY},
-    {"SEARCH_KEYWORD", SEARCH_KEYWORD},
-    {"COUNT_KEYWORD", COUNT_KEYWORD}
-};
-
-struct Command{
-    int8_t type;
-    std::string argument;
-};
-
 static constexpr uint8_t EMERGENCY = 0;
 static constexpr uint8_t ALERT = 1;
 static constexpr uint8_t CRITICAL = 2;
@@ -72,19 +49,32 @@ static constexpr uint8_t DEBUG = 7;
  */
 static const std::unordered_map<std::string, uint8_t> SEVERITY_KEYWORDS = {
     {"emerg", EMERGENCY},
+    {"emergency", EMERGENCY},
     {"alert", ALERT},
     {"crit", CRITICAL},
+    {"critical", CRITICAL},
     {"err", ERROR},
+    {"error", ERROR},
     {"warning", WARNING},
+    {"warn", WARNING},
     {"notice", NOTICE},
     {"info", INFORMATIONAL},
     {"debug", DEBUG}
 };
 
-std::vector<std::string> Tokenize(std::string& log);
-struct Log ParseLog(std::string& log);
-std::string StringifyLog(struct Log& log);
-uint8_t InferSeverity(std::vector<std::string> message);
-struct Command IdentifyCommand(std::string& command);
+/**
+ * Function signatures
+ */
+std::vector<std::string> Tokenize(const std::string& log);
+
+struct Log ParseLog(const std::string& log);
+
+std::string StringifyLog(const struct Log& log);
+
+uint8_t InferSeverity(const std::vector<std::string>& message);
+
+bool ValidMessage(std::string& buffer);
+
+size_t Prefix(size_t type, std::string& message);
 
 #endif

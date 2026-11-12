@@ -1,6 +1,6 @@
 #include "../../include/parser/parser.hpp"
 
-std::vector<std::string> Tokenize(std::string& log){
+std::vector<std::string> Tokenize(const std::string& log){
     std::stringstream stream(log);
     std::vector<std::string> tokens;
     std::string token;
@@ -12,7 +12,7 @@ std::vector<std::string> Tokenize(std::string& log){
     return tokens;
 }
 
-struct Log ParseLog(std::string& log){
+struct Log ParseLog(const std::string& log){
     std::vector<std::string> log_tokens = Tokenize(log);
     struct Log l;
 
@@ -23,7 +23,8 @@ struct Log ParseLog(std::string& log){
      */
 
     l.date = log_tokens[0] + " " + log_tokens[1];
-    l.timestamp = log_tokens[3];
+    l.timestamp = log_tokens[2];
+    l.host = log_tokens[3];
 
     //find index of 1st occurrence of the braced argument (open brace)
     size_t open_brace_pos = log_tokens[4].find('[');
@@ -37,7 +38,7 @@ struct Log ParseLog(std::string& log){
 
         // enclosing brace
         if(close_brace_pos != std::string::npos){
-            l.daemon.argument = log_tokens[4].substr(open_brace_pos, close_brace_pos + 1);
+            l.daemon.argument = log_tokens[4].substr(open_brace_pos, (close_brace_pos - open_brace_pos) + 1);
         }
     } else if(colon_pos != std::string::npos){
         l.daemon.name = log_tokens[4].substr(0, colon_pos);
@@ -58,11 +59,11 @@ struct Log ParseLog(std::string& log){
     return l;
 }
 
-std::string StringifyLog(struct Log& log){
-    return log.date + " " + log.timestamp + " " + log.host + " " + log.daemon.name + log.daemon.argument + " " + log.severity  + " " + message;
+std::string StringifyLog(const struct Log& log){
+    return log.date + " " + log.timestamp + " " + log.host + " " + log.daemon.name + log.daemon.argument + " " + log.severity  + " " + log.message;
 }
 
-uint8_t InferSeverity(std::vector<std::string> message){
+uint8_t InferSeverity(const std::vector<std::string>& message){
     //initially assume the most unserious 
     uint8_t severity = DEBUG;
 
@@ -81,22 +82,36 @@ uint8_t InferSeverity(std::vector<std::string> message){
     return severity;
 }
 
-struct Command IdentifyCommand(std::string& command){
-    struct Command c;
-    // look for the first space (first word is before the 1st space)
-    size_t space_pos = command.find(' ');
-
-    if(space_pos != std::string::npos){
-        auto it = COMMANDS.find(command.substr(0, space_pos));
-
-        if(it != COMMANDS.end()){
-            c.type = it->second;
-            c.argument = command.substr(space_pos, command.length() - space_pos - 1);
-        } else{ 
-            c.type = -1;
-            c.argumenr = "";
-        }
+bool ValidMessage(std::string& buffer){
+    if(buffer.length() < 1){
+        return false;
     }
 
-    return c;
+    // find the length prefix separated byspace
+    size_t space_pos = buffer.find(' ');
+
+    // if there is no space delimiter then network message incompllete
+    if(space_pos == std::string::npos){
+        return false;
+    } 
+
+    //extract prefix and raw message
+    size_t prefix_length = std::stoul(buffer.substr(0, space_pos));
+    size_t raw_network_message_size = (space_pos + 1) + prefix_length; // the whole message plus the prefix
+ 
+    // if the message is less than the prefix then network message incomplete
+    if(buffer.length() < raw_network_message_size){
+        return false;
+    }
+
+    // message buffer is sufficient
+    buffer.erase(0, space_pos + 1);
+
+    return true;
+}
+
+// *********
+size_t Prefix(std::string& message){
+    message.insert(0, std::to_string(message.length()) + " ");
+    return message.length();
 }

@@ -51,3 +51,10 @@ NEVERMIND
 - For clients to notify the server
   with the intention of canceling
   a previous command.
+
+  var    var   
+length | payload
+
+type:
+  COMMAND = specifies that the payload is a command
+  DATA = specifies that the payload is application data

@@ -5,9 +5,11 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <array>
 #include <cstdint>
 #include <cstring>
 #include <thread>
+#include <mutex>
 #include <shared_mutex>
 #include <sys/socket.h>
 #include <arpa/inet.h>
@@ -15,9 +17,10 @@
 #include <sys/epoll.h>
 
 #include "../../src/parser/parser.cpp"
+#include "../../src/buffer/ring_buffer.cpp"
 
-// just an arbitrary constant I made up
-static const uint8_t MAX_DATA_SIZE = 65535;
+// just an arbitrary constants I made up
+static const uint16_t MAX_DATA_SIZE = 1024;
 
 // arbitrary constant as per the linux epoll man page
 static const uint8_t MAX_EVENTS = 10;
@@ -25,20 +28,46 @@ static const uint8_t MAX_EVENTS = 10;
 /**
  * Master Log Vector (Shared)
  */
-static const std::vector<Log> MASTER;
+static const std::vector<std::string> MASTER;
+
+static constexpr uint8_t DATE_INDEX = 0;
+static constexpr uint8_t TIMESTAMP_INDEX = 1;
+static constexpr uint8_t HOST_INDEX = 2;
+static constexpr uint8_t DAEMON_INDEX = 3;
+static constexpr uint8_t SEVERITY_INDEX = 4;
+static constexpr uint8_t KEYWORD_INDEX = 5;
+
+std::array<std::unordered_map<std::string, std::vector<size_t>>, 6> INDEX{};
+
+std::unordered_map<std::string, uint8_t> COMMAND_INDEX_MAP = {
+    {"SEARCH_DATE", DATE_INDEX},
+    {"SEARCH_TIMESTAMP", TIMESTAMP_INDEX},
+    {"SEARCH_HOST", HOST_INDEX},
+    {"SEARCH_DAEMON", DAEMON_INDEX},
+    {"SEARCH_SEVERITY", SEVERITY_INDEX},
+    {"SEARCH_KEYWORD", KEYWORD_INDEX},
+};
+
+
 
 /**
- * Master Log Index Mappings (Shared Resource)
+ * Shared mutual exclusion (read/write lock)
  */
-static const std::unordered_map<std::string, std::vector<int>> DATE_INDEX;
-static const std::unordered_map<std::string, std::vector<int>> HOST_INDEX;
-static const std::unordered_map<std::string, std::vector<int>> DAEMON_INDEX;
-static const std::unordered_map<std::string, std::vector<int>> SEVERITY_INDEX;
-static const std::unordered_map<std::string, std::vector<int>> KEYWORD_INDEX;
+std::shared_mutex mtx;
 
+/**
+ * Client sturcture 
+ *  fd - client socket file descriptor
+ *  inbound_buffer - buffer for data received FROM a client
+ *  outbound_buffer - buffer for data to be sent TO a client
+ */
 struct Client{
+    // file descriptor
     int fd;
-    std::string buf;
+
+    // data buffers
+    ring_buffer inbound_buffer;
+    ring_buffer outbound_buffer;
 };
 
 class Server{
@@ -47,32 +76,43 @@ class Server{
         int epoll_fd;
         std::string ip_address;
         uint16_t port;
-        Parser parser;
+        std::unordered_map<int, struct Client> clients;
 
-        int RegisterServer();
+        /**
+         * Epoll functions
+         */
+        int Register(int fd);
+
+        int Deregister(int fd);
+
+        int SetToWriteable(int fd);
+
+        int RevertToDefault(int fd);
 
         void EpollEvent();
 
-        void Manifold(std::string command);
+        /**
+         * Network functions
+         */
+        void SendData(struct Client& client);
+
+        void ReceiveData(int fd);
+
+        /**
+         * Backend functions
+         */
+        void Dispatch(int fd);
+
+        void ProcessData(std::vector<std::string>& buffer);
+
+        void Ingest(std::vector<std::string>& buffer);
+
+        void Purge();
+
+        void Query(std::vector<std::string>& buffer, std::string query);
 
     public:
         Server(std::string& ip_address, uint16_t& port);
-
-        bool Ingest(std::string& argument);
-
-        bool Purge();
-
-        std::vector<std::string> SearchDate(std::string& argument);
-
-        std::vector<std::string> SearchHost(std::string& argument);
-
-        std::vector<std::string> SearchDaemon(std::string& argument);
-
-        std::vector<std::string> SearchSeverity(std::string& argument);
-
-        std::vector<std::string> SearchKeyword(std::string& argument);
-
-        std::vector<std::string> CountKeyword(std::string& argument);
 
         void Start();
 };
