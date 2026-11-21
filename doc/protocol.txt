@@ -1,60 +1,43 @@
 Mini-Splunk Protocol
 
-Connection Establishment:
-- For clients initiating a network
-  connection to the server.
-
-Server			     Client
-  |			   	|
-  |<-------------HI-------------|
-  |			   	|
-  |				|
-  |------------HELLO----------->|
-  |				|
-  |			   	|
-  |~~~~~~~~~~~SESSION~~~~~~~~~~~|
-  |			   	|
-  |				|
-  |			   	|
-  |				|
-  v				v
-  
-Commands: 
-- Protocol used for issuing commands
-  to the server.
-
 INGEST
-Server			     Client
-  |			   	|
-  |<-------PLEASE INGEST--------|
-  |			   	|
-  |				|
-  |-------------SURE----------->|
-  |				|
-  |			   	|
-  |<------------LOGS------------|
-  |			   	|
-  |<------------LOGS------------|
-  |			   	|
-  |<------------LOGS------------|
-  v				v
+Server			               Client
+  |			   	                  |
+  |<----------INGEST----------|
+  |			   	                  |
+  |------------OK------------>|
+  |			   	                  |
+  |<-----------LOG------------|
+  |			   	                  |
+  |<-----------LOG------------|
+  |			   	                  |
+  |<-----------LOG------------|
+  |                           |
+  |<-----------EOF------------|
+  v				                    v
   
 PURGE
+Server			               Client
+  |			   	                  |
+  |<----------PURGE-----------|
+  |			   	                  |
+  |------------OK------------>|
+  |			   	                  |
+  |-----------DONE----------->|
+  v                           v
  
-WAIT
- - For the server to notify clients 
-   that a destructive operation is 
-   currently being performed by the
-   server.
- 
-NEVERMIND
-- For clients to notify the server
-  with the intention of canceling
-  a previous command.
-
-  var    var   
-length | payload
-
-type:
-  COMMAND = specifies that the payload is a command
-  DATA = specifies that the payload is application data
+SEARCH
+Server			               Client
+  |			   	                  |
+  |<---SEARCH_DATE "Feb 7"----|
+  |			   	                  |
+  |------------OK------------>|
+  |			   	                  |
+  |------------LOG----------->|
+  |			   	                  |
+  |------------LOG----------->|
+  |			   	                  |
+  |------------LOG----------->|
+  |			   	                  |
+  |------------EOF----------->|
+  v                           v
