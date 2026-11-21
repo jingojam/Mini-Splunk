@@ -28,14 +28,34 @@ int Client::ConnectToServer(std::string& server_ip, uint16_t& port){
     return fd;
 }
 
-ssize_t Client::SendData(int fd, std::string& data){
-    uint32_t prefix = htonl(data.length());
+void Client::StreamFile(int fd, std::string& filename){
+    std::ifstream file(filename);
 
-    std::string msg = std::to_string(prefix) + " " + data;
+    if(!file.is_open()){
+        std::cerr << "[ERROR] File \"" << filename << "\" Not Found.\n";
+        return;
+    }
+ 
+    std::string data;
 
-    ssize_t bytes_sent = send(fd, msg.c_str(), msg.length(), 0);
+    while(std::getline(file, data)){
+        SendData(fd, data);
+    }
+}
 
-    return bytes_sent;
+void Client::SendData(int fd, std::string& data){
+    size_t len = Prefix(data);
+    size_t total_bytes_sent = 0; // how much bytes has been sent so far
+    size_t bytes_sent = 0;       // how much bytes was sent for a send iteration
+    size_t bytes_to_send = len;  // how much data left to send
+    const char* msg = data.c_str();
+
+    while(total_bytes_sent < len){
+        bytes_sent = send(fd, msg + total_bytes_sent, bytes_to_send, 0);
+
+        bytes_to_send -= bytes_sent;
+        total_bytes_sent += bytes_sent;
+    }
 }
 
 int Client::ReceiveData(){
@@ -44,18 +64,28 @@ int Client::ReceiveData(){
 
 void Client::CommandInterface(){
     std::cout << "Commands:\n";
-    std::cout << "\t[+] INGEST <Filepath> <Server IP Address>:<Server Port>\n";
-    std::cout << "\t[+] QUERY <Server IP Address>:<Server Port> SEARCH_DATE <Date>\n";
-    std::cout << "\t[+] QUERY <Server IP Address>:<Server Port> SEARCH_HOST <Hostname>\n";
-    std::cout << "\t[+] QUERY <Server IP Address>:<Server Port> SEARCH_DAEMON <Daemon>\n";
-    std::cout << "\t[+] QUERY <Server IP Address>:<Server Port> SEARCH_SEVERITY EMERGENCY/ALERT/CRITICAL/ERROR/WARNING/NOTICE/INFORMATIONAL/DEBUG\n";
-    std::cout << "\t[+] QUERY <Server IP Address>:<Server Port> SEARCH_KEYWORD <Keywords>\n";
-    std::cout << "\t[+] QUERY <Server IP Address>:<Server Port> COUNT_KEYWORD <Keywords>\n";
+    std::cout << "\t[+] INGEST <Server IP Address>:<Server Port> <Filepath>\n";
+    std::cout << "\t[+] SEARCH_DATE <Server IP Address>:<Server Port> <Date>\n";
+    std::cout << "\t[+] SEARCH_HOST <Server IP Address>:<Server Port> <Hostname>\n";
+    std::cout << "\t[+] SEARCH_DAEMON <Server IP Address>:<Server Port> <Daemon>\n";
+    std::cout << "\t[+] SEARCH_SEVERITY <Server IP Address>:<Server Port> EMERGENCY/ALERT/CRITICAL/ERROR/WARNING/NOTICE/INFORMATIONAL/DEBUG\n";
+    std::cout << "\t[+] SEARCH_KEYWORD <Server IP Address>:<Server Port> <Keywords>\n";
     std::cout << "\t[+] PURGE <Server IP Address>:<Server Port>\n";
     std::cout << "Tip: Use /help to show this list of commands.\n";
 }
 
-void Client::Ingest(std::string& ip_address, uint16_t& port){
+void Client::Ingest(std::string& ip_address, uint16_t port, std::string& filename){
+    int fd = ConnectToServer(ip_address, port);
+
+    if(fd < 0){
+        std::cerr << "[ERROR] Cannot Connect to Server.\n";
+        return;
+    }
+
+    StreamFile(fd, filename);
+}
+
+void Client::SearchDate(std::string& ip_address, uint16_t port, std::string& date){
     int fd = ConnectToServer(ip_address, port);
 
     if(fd < 0){
@@ -64,7 +94,7 @@ void Client::Ingest(std::string& ip_address, uint16_t& port){
     }
 }
 
-void Client::SearchDate(std::string& ip_address, uint16_t& port, std::string& date){
+void Client::SearchHost(std::string& ip_address, uint16_t port, std::string& hostname){
     int fd = ConnectToServer(ip_address, port);
 
     if(fd < 0){
@@ -73,16 +103,7 @@ void Client::SearchDate(std::string& ip_address, uint16_t& port, std::string& da
     }
 }
 
-void Client::SearchHost(std::string& ip_address, uint16_t& port, std::string& hostname){
-    int fd = ConnectToServer(ip_address, port);
-
-    if(fd < 0){
-        std::cerr << "[ERROR] Cannot Connect to Server.\n";
-        return;
-    }
-}
-
-void Client::SearchDaemon(std::string& ip_address, uint16_t& port, std::string& daemon){
+void Client::SearchDaemon(std::string& ip_address, uint16_t port, std::string& daemon){
     int fd = ConnectToServer(ip_address, port);
     
     if(fd < 0){
@@ -91,7 +112,7 @@ void Client::SearchDaemon(std::string& ip_address, uint16_t& port, std::string& 
     }
 }
 
-void Client::SearchSeverity(std::string& ip_address, uint16_t& port, std::string& severity){
+void Client::SearchSeverity(std::string& ip_address, uint16_t port, std::string& severity){
     int fd = ConnectToServer(ip_address, port);
 
     if(fd < 0){
@@ -100,7 +121,7 @@ void Client::SearchSeverity(std::string& ip_address, uint16_t& port, std::string
     }
 }
 
-void Client::SearchKeyword(std::string& ip_address, uint16_t& port, std::string& keyword){
+void Client::SearchKeyword(std::string& ip_address, uint16_t port, std::string& keyword){
     int fd = ConnectToServer(ip_address, port);
 
     if(fd < 0){
@@ -109,16 +130,7 @@ void Client::SearchKeyword(std::string& ip_address, uint16_t& port, std::string&
     }
 }
 
-void Client::CountKeyword(std::string& ip_address, uint16_t& port, std::string& keyword){
-    int fd = ConnectToServer(ip_address, port);
-
-    if(fd < 0){
-        std::cerr << "[ERROR] Cannot Connect to Server.\n";
-        return;
-    }
-}
-
-void Client::Purge(std::string& ip_address, uint16_t& port){
+void Client::Purge(std::string& ip_address, uint16_t port){
     int fd = ConnectToServer(ip_address, port);
 
     if(fd < 0){
@@ -129,22 +141,26 @@ void Client::Purge(std::string& ip_address, uint16_t& port){
 
 
 void Client::Start(){
+    std::string command;
+
     while(1){
-        std::string command;
-        
         CommandInterface();
 
         std::cout << "Client> ";
-        std::cin >> command; 
+        std::getline(std::cin,command); 
 
-        if(command == "/h"){
-            std::system("clear");
+        if(command == "/help"){
+            std::cout << "\n";
+            CommandInterface();
             continue;
         }
 
-        std::string ip = "127.0.0.1";
-        uint16_t port = 5000;
+        struct ClientCommand client_command;
 
-        Ingest(ip, port);
+        ParseClientCommand(client_command, command);
+
+        if(client_command.command == "INGEST"){
+            Ingest(client_command.address, client_command.port, client_command.argument);
+        }
     }
 }

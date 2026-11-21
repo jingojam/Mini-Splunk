@@ -1,6 +1,23 @@
 #include "../../include/parser/parser.hpp"
 
-std::vector<std::string> Tokenize(const std::string& log){
+/**
+ * Converts a string to uppercase and returns
+ * an uppercase equivalent of the string
+ */
+std::string Upper(std::string& src){
+    std::string res;
+    res.resize(src.length());
+
+    std::transform(src.begin(), src.end(), res.begin(), [](unsigned char c){return std::toupper(c);});
+
+    return res; 
+}
+
+/**
+ * Tokenizes a string and returns a vector
+ * of string tokens
+ */
+std::vector<std::string> Tokenize(std::string& log){
     std::stringstream stream(log);
     std::vector<std::string> tokens;
     std::string token;
@@ -12,7 +29,10 @@ std::vector<std::string> Tokenize(const std::string& log){
     return tokens;
 }
 
-struct Log ParseLog(const std::string& log){
+/**
+ * Parses a log and returns a `struct Log`
+ */
+struct Log ParseLog(std::string& log){
     std::vector<std::string> log_tokens = Tokenize(log);
     struct Log l;
 
@@ -48,7 +68,7 @@ struct Log ParseLog(const std::string& log){
     l.severity = InferSeverity(log_tokens);
 
     //concatenate tokenized message field
-    for(int i = 5; i < log_tokens.size(); i++){
+    for(size_t i = 5; i < log_tokens.size(); i++){
         if(i != 5){
             l.message += " ";
         }
@@ -59,16 +79,19 @@ struct Log ParseLog(const std::string& log){
     return l;
 }
 
-std::string StringifyLog(const struct Log& log){
+/**
+ * Returns a concatenated string of a `struct Log`
+ */
+std::string StringifyLog(struct Log& log){
     return log.date + " " + log.timestamp + " " + log.host + " " + log.daemon.name + log.daemon.argument + " " + log.severity  + " " + log.message;
 }
 
-uint8_t InferSeverity(const std::vector<std::string>& message){
+uint8_t InferSeverity(std::vector<std::string>& message){
     //initially assume the most unserious 
     uint8_t severity = DEBUG;
 
     //check every token for keywords
-    for(std::string& keyword : message){
+    for(const std::string& keyword : message){
         auto it = SEVERITY_KEYWORDS.find(keyword);
 
         if(it != SEVERITY_KEYWORDS.end()){
@@ -82,7 +105,14 @@ uint8_t InferSeverity(const std::vector<std::string>& message){
     return severity;
 }
 
-bool ValidMessage(std::string& buffer){
+/**
+ * Checks the length prefix against the
+ * actual length of the message
+ *  Returns true if it matches,
+ *  Otherwise false
+ *
+ */
+bool ValidMessage(std::string& buffer, size_t& size){
     if(buffer.length() < 1){
         return false;
     }
@@ -97,6 +127,7 @@ bool ValidMessage(std::string& buffer){
 
     //extract prefix and raw message
     size_t prefix_length = std::stoul(buffer.substr(0, space_pos));
+    size = prefix_length;
     size_t raw_network_message_size = (space_pos + 1) + prefix_length; // the whole message plus the prefix
  
     // if the message is less than the prefix then network message incomplete
@@ -110,8 +141,35 @@ bool ValidMessage(std::string& buffer){
     return true;
 }
 
-// *********
+/**
+ * Computes the length of the message and prepends it
+ * as a prefix to the message, and returns the length
+ */
 size_t Prefix(std::string& message){
     message.insert(0, std::to_string(message.length()) + " ");
     return message.length();
+}
+
+int ParseClientCommand(struct ClientCommand& dst, std::string& src){
+    std::vector<std::string> tokens = Tokenize(src);
+    size_t num_tokens = tokens.size();
+
+    if(num_tokens < 2){
+        return -1;
+    }
+
+    dst.command = tokens[0];
+
+    size_t colon_pos = tokens[1].find(':');
+
+    if(colon_pos != std::string::npos){
+        dst.address = tokens[1].substr(0, colon_pos);
+        dst.port = static_cast<uint16_t>(std::stoi(tokens[1].substr(colon_pos + 1)));
+    }
+
+    if(num_tokens > 2){
+        dst.argument = tokens[2];
+    }
+
+    return 0;
 }

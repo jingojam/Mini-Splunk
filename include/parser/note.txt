@@ -1,0 +1,8 @@
+Stuff to implement:
+
+Server:
+    - Server-side input validation
+    - Message length prefix validation for buffer exhaustion
+    
+Client:
+    - Client-side input validation

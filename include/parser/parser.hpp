@@ -8,6 +8,8 @@
 #include <string_view>
 #include <sstream>
 #include <cstdint>
+#include <cctype>
+#include <algorithm>
 
 /**
  * Daemon structure
@@ -30,6 +32,18 @@ struct Log{
     struct Daemon daemon;
     std::string severity;
     std::string message;
+};
+
+struct ClientCommand{
+    std::string command;
+    std::string address;
+    uint16_t port;
+    std::string argument;
+};
+
+struct ServerCommand{
+    std::string command;
+    std::string argument;
 };
 
 /**
@@ -62,19 +76,25 @@ static const std::unordered_map<std::string, uint8_t> SEVERITY_KEYWORDS = {
     {"debug", DEBUG}
 };
 
+
 /**
  * Function signatures
  */
-std::vector<std::string> Tokenize(const std::string& log);
 
-struct Log ParseLog(const std::string& log);
+std::string Upper(std::string& src);
 
-std::string StringifyLog(const struct Log& log);
+std::vector<std::string> Tokenize(std::string& log);
 
-uint8_t InferSeverity(const std::vector<std::string>& message);
+struct Log ParseLog(std::string& log);
 
-bool ValidMessage(std::string& buffer);
+std::string StringifyLog(struct Log& log);
 
-size_t Prefix(size_t type, std::string& message);
+uint8_t InferSeverity(std::vector<std::string>& message);
+
+bool ValidMessage(std::string& buffer, size_t& size);
+
+size_t Prefix(std::string& message);
+
+int ParseClientCommand(struct ClientCommand& dst, std::string& src);
 
 #endif

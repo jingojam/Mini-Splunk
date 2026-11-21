@@ -57,6 +57,10 @@ Server::Server(std::string& ip_address, uint16_t& port){
     this->epoll_fd = epoll_fd;
 }
 
+/**
+ * Modifies the specified file descriptor in the Epoll instance
+ * with EPOLLOUT to trigger outbound responses
+ */
 int Server::SetToWriteable(int fd){
     struct epoll_event event;
     event.data.fd = fd;
@@ -68,6 +72,10 @@ int Server::SetToWriteable(int fd){
     return ctl_stat;
 }
 
+/**
+ * Modifies the specified file descriptor in the Epoll instance
+ * back to original EPOLLIN event
+ */
 int Server::RevertToDefault(int fd){
     struct epoll_event event;
     event.data.fd = fd;
@@ -79,8 +87,15 @@ int Server::RevertToDefault(int fd){
     return ctl_stat;
 }
 
+/**
+ * Removes the specified file descriptor from the Epoll interest list
+ */
 int Server::Deregister(int fd){
-    this->clients.erase(fd);
+    auto it = this->clients.find(fd);
+
+    if(it != this->clients.end()){
+        this->clients.erase(fd);
+    }
 
     //remove fd from interest list
     int ctl_stat = epoll_ctl(this->epoll_fd, EPOLL_CTL_DEL, fd, NULL);
@@ -114,7 +129,7 @@ void Server::Dispatch(int fd){
         return;
     }
 
-    std::thread process_thread(&Server::ProcessData, this, it->second.inbound_buffer);
+    std::thread process_thread(&Server::ProcessData, this, fd, std::ref(it->second.inbound_buffer), std::ref(it->second.outbound_buffer));
 
     process_thread.detach(); // run the thread in the background
 }
@@ -122,15 +137,16 @@ void Server::Dispatch(int fd){
 /**
  * Main worker thread function
  */
-void Server::ProcessData(std::vector<std::string>& buffer){
+void Server::ProcessData(int fd, ring_buffer& inbound_buffer, ring_buffer& outbound_buffer){
     std::string message;
     std::string command;
     std::string data;
     uint8_t index;
 
-    while(!buffer.is_empty()){
-        message = buffer.get_back();
-        buffer.pop_back();
+    while(!inbound_buffer.is_empty()){ //as long as there is data
+        message = inbound_buffer.get_back();
+        std::cout << "[DEBUG] ProcessData(): " << message << "\n";
+        inbound_buffer.pop_back();
 
         bool ingest_command = message.starts_with("INGEST");
         bool purge_command = message.starts_with("PURGE");
@@ -140,11 +156,10 @@ void Server::ProcessData(std::vector<std::string>& buffer){
         bool search_daemon_command = message.starts_with("SEARCH_DAEMON");
         bool search_severity_command = message.starts_with("SEARCH_SEVERITY");
         bool search_keyword_command = message.starts_with("SEARCH_KEYWORD");
-        bool log_message = message.starts_with("LOG");
 
         // if message is a command (any of the search functions/ingest/purge routines)
         if(ingest_command){
-            Ingest(buffer);
+            Ingest(inbound_buffer);
         } else if(purge_command){
             Purge();
         } else if(search_date_command || search_timestamp_command || 
@@ -159,16 +174,19 @@ void Server::ProcessData(std::vector<std::string>& buffer){
             }
 
             auto it = COMMAND_INDEX_MAP.find(command);
-            
+
             if(it != COMMAND_INDEX_MAP.end()){
                 index = it->second;
             }
 
             if(SetToWriteable(fd) == 0){
-                Query(buffer, data);
+                Query(outbound_buffer, index, data);
             } else{
                 std::cerr << "[ERROR] Cannot Modify Socket File Descriptor Event\n";
             }
+        } else{
+            std::cerr << "[ERROR] Malformed Message.\n";
+            return;
         }
     }
 }
@@ -177,7 +195,7 @@ void Server::ProcessData(std::vector<std::string>& buffer){
 /**
  * Ingest (Write operation)
  */
-void Server::Ingest(std::vector<std::string>& buffer){
+void Server::Ingest(ring_buffer& buffer){
     // acquire write lock
     std::unique_lock<std::shared_mutex> lock(mtx);
     std::string data;
@@ -186,17 +204,19 @@ void Server::Ingest(std::vector<std::string>& buffer){
     int index = 0;
     
     while(!buffer.is_empty()){
-        data = buffer.back();
+        data = buffer.get_back();
         log = ParseLog(data);
+
+        std::cout << data << "\n";
         
         MASTER.push_back(data);
         INDEX[DATE_INDEX][log.date].push_back(index);
         INDEX[TIMESTAMP_INDEX][log.timestamp].push_back(index);
         INDEX[HOST_INDEX][log.host].push_back(index);
-        INDEX[DAEMON_INDEX][log.daemon].push_back(index);
+        INDEX[DAEMON_INDEX][log.daemon.name].push_back(index);
         INDEX[SEVERITY_INDEX][log.severity].push_back(index);
 
-        for(std::string& keyword : Tokenize(client.message)){
+        for(const std::string& keyword : Tokenize(log.message)){
             INDEX[KEYWORD_INDEX][keyword].push_back(index);
         }
 
@@ -204,6 +224,8 @@ void Server::Ingest(std::vector<std::string>& buffer){
 
         index += 1;
     }
+
+    lock.unlock();
 }
 
 /**
@@ -213,17 +235,17 @@ void Server::Purge(){
     // acquire write lock
     std::unique_lock<std::shared_mutex> lock(mtx);
     // critical section
-    std::unordered_map<std::string, std::vector<size_t>> empty_date_index;
-    std::unordered_map<std::string, std::vector<size_t>> empty_timestamp_index;
-    std::unordered_map<std::string, std::vector<size_t>> empty_host_index;
-    std::unordered_map<std::string, std::vector<size_t>> empty_daemon_index;
-    std::unordered_map<std::string, std::vector<size_t>> empty_severity_index;
-    std::unordered_map<std::string, std::vector<size_t>> empty_keyword_index;
+
+    std::vector<std::string> empty_master;
+    std::unordered_map<std::string, std::vector<uint8_t>> empty_date_index;
+    std::unordered_map<std::string, std::vector<uint8_t>> empty_timestamp_index;
+    std::unordered_map<std::string, std::vector<uint8_t>> empty_host_index;
+    std::unordered_map<std::string, std::vector<uint8_t>> empty_daemon_index;
+    std::unordered_map<std::string, std::vector<uint8_t>> empty_severity_index;
+    std::unordered_map<std::string, std::vector<uint8_t>> empty_keyword_index;
 
     // clear the master log list and deallocate memory
-    MASTER.clear();
-    MASTER.shrink_to_fit();
-
+    MASTER.swap(empty_master);
     //swap the existing indexes with an empty one to free memory
     INDEX[DATE_INDEX].swap(empty_date_index);   
     INDEX[TIMESTAMP_INDEX].swap(empty_timestamp_index);
@@ -231,30 +253,32 @@ void Server::Purge(){
     INDEX[DAEMON_INDEX].swap(empty_daemon_index);
     INDEX[SEVERITY_INDEX].swap(empty_severity_index);
     INDEX[KEYWORD_INDEX].swap(empty_keyword_index);
+
+    lock.unlock();
 }
 
 /**
  * Query (Read operation)
  */
-void Server::Query(uint8_t index, std::string& msg){
+void Server::Query(ring_buffer& buffer, uint8_t index, std::string query){
     // acquire read lock
     std::shared_lock<std::shared_mutex> lock(mtx);
     // critical section
-    auto it = INDEX[index].find(msg);
+
+    auto it = INDEX[index].find(query);
 
     if(it != INDEX[index].end()){
-        int i;
-
-        for(i = 0; i < it->second.size(); i++){
-
+        for(size_t i = 0; i < it->second.size() && !buffer.is_full(); i++){
+            buffer.push_back(MASTER[i]);
         }
     }
+
+    lock.unlock();
 }
 
 void Server::EpollEvent(){
     struct epoll_event events[MAX_EVENTS];
     int i, num_fds;
-    int num_workers = 0;
     int fd;
 
     // event loop
@@ -281,10 +305,9 @@ void Server::EpollEvent(){
                 
                 struct Client client;
                 client.fd = clfd;
-                client.stream = false;
-                
                 this->clients.emplace(clfd, client);
 
+                std::cout << "[STATUS] Client Connected.\n";
             } else{
                 // event is form another fd (a client)
 
@@ -326,10 +349,11 @@ void Server::Start(){
 
 void Server::SendData(int fd){
     auto it = this->clients.find(fd);
+
     std::string data;
     size_t len;
     size_t bytes_to_send;
-    size_t total_bytes_to_send;
+    size_t total_bytes_sent;
     ssize_t bytes_sent;
 
     while(!it->second.outbound_buffer.is_empty()){
@@ -341,7 +365,7 @@ void Server::SendData(int fd){
 
         //send bytes to the fd until message is fully sent
         while(total_bytes_sent < len){
-            bytes_sent = send(client.fd, msg + total_bytes_sent, bytes_to_send, 0);
+            bytes_sent = send(it->second.fd, msg + total_bytes_sent, bytes_to_send, 0);
 
             //some error happened
             if(bytes_sent < 0){
@@ -361,17 +385,12 @@ void Server::SendData(int fd){
 
 void Server::ReceiveData(int fd){
     auto it = this->clients.find(fd);
-    std::string temp_buffer;
     ssize_t bytes_received;
-    ssize_t current_buffer_size;
+    size_t message_length;
+    char message[MAX_DATA_SIZE];
 
     while(true){
-        current_buffer_size = temp_buffer.size(); // serves as the data pointer
-
-        // allocate more memory to the buffer
-        temp_buffer.resize(current_buffer_size + MAX_DATA_SIZE);
-
-        bytes_received = recv(fd, temp_buffer.data() + current_buffer_size, MAX_DATA_SIZE, MSG_DONTWAIT);
+        bytes_received = recv(fd, message, MAX_DATA_SIZE, MSG_DONTWAIT);
 
         if(bytes_received < 0){
             if(errno == EAGAIN || errno == EWOULDBLOCK){
@@ -384,11 +403,15 @@ void Server::ReceiveData(int fd){
             return;
         }
 
-        while(ValidMessage(temp_buffer)){
-            // add every complete message to the client's inbound buffer
-            if(!it->second.inbound_buffer.is_full()){
-                it->second.inbound_buffer.push_back(temp_buffer);
-            }
+        it->second.temp_buffer.append(message, bytes_received);
+
+        while(!it->second.inbound_buffer.is_full() && ValidMessage(it->second.temp_buffer, message_length)){
+            // add every complete message to the client's inbound buffer   
+            std::string msg = it->second.temp_buffer.substr(0, message_length);
+
+            it->second.inbound_buffer.push_back(msg);
+            
+            it->second.temp_buffer.erase(0, message_length);
         }
     }
 }

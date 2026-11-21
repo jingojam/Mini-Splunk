@@ -16,8 +16,8 @@
 #include <fcntl.h>
 #include <sys/epoll.h>
 
-#include "../../src/parser/parser.cpp"
-#include "../../src/buffer/ring_buffer.cpp"
+#include "../../include/parser/parser.hpp"
+#include "../../include/buffer/ring_buffer.hpp"
 
 // just an arbitrary constants I made up
 static const uint16_t MAX_DATA_SIZE = 1024;
@@ -26,9 +26,10 @@ static const uint16_t MAX_DATA_SIZE = 1024;
 static const uint8_t MAX_EVENTS = 10;
 
 /**
- * Master Log Vector (Shared)
+ * Main data log storage
  */
-static const std::vector<std::string> MASTER;
+static std::vector<std::string> MASTER;
+static std::array<std::unordered_map<std::string, std::vector<uint8_t>>, 6> INDEX{};
 
 static constexpr uint8_t DATE_INDEX = 0;
 static constexpr uint8_t TIMESTAMP_INDEX = 1;
@@ -37,9 +38,7 @@ static constexpr uint8_t DAEMON_INDEX = 3;
 static constexpr uint8_t SEVERITY_INDEX = 4;
 static constexpr uint8_t KEYWORD_INDEX = 5;
 
-std::array<std::unordered_map<std::string, std::vector<size_t>>, 6> INDEX{};
-
-std::unordered_map<std::string, uint8_t> COMMAND_INDEX_MAP = {
+static const std::unordered_map<std::string, uint8_t> COMMAND_INDEX_MAP = {
     {"SEARCH_DATE", DATE_INDEX},
     {"SEARCH_TIMESTAMP", TIMESTAMP_INDEX},
     {"SEARCH_HOST", HOST_INDEX},
@@ -48,12 +47,10 @@ std::unordered_map<std::string, uint8_t> COMMAND_INDEX_MAP = {
     {"SEARCH_KEYWORD", KEYWORD_INDEX},
 };
 
-
-
 /**
  * Shared mutual exclusion (read/write lock)
  */
-std::shared_mutex mtx;
+static std::shared_mutex mtx;
 
 /**
  * Client sturcture 
@@ -66,6 +63,7 @@ struct Client{
     int fd;
 
     // data buffers
+    std::string temp_buffer;
     ring_buffer inbound_buffer;
     ring_buffer outbound_buffer;
 };
@@ -94,7 +92,7 @@ class Server{
         /**
          * Network functions
          */
-        void SendData(struct Client& client);
+        void SendData(int fd);
 
         void ReceiveData(int fd);
 
@@ -103,13 +101,13 @@ class Server{
          */
         void Dispatch(int fd);
 
-        void ProcessData(std::vector<std::string>& buffer);
+        void ProcessData(int fd, ring_buffer& inbound_buffer, ring_buffer& outbound_buffer);
 
-        void Ingest(std::vector<std::string>& buffer);
+        void Ingest(ring_buffer& buffer);
 
         void Purge();
 
-        void Query(std::vector<std::string>& buffer, std::string query);
+        void Query(ring_buffer& buffer, uint8_t index, std::string query);
 
     public:
         Server(std::string& ip_address, uint16_t& port);

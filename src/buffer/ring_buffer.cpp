@@ -47,7 +47,7 @@ std::string ring_buffer::get_front(){
         // handle empty access error
         return "";
     }
-    return ""
+    return "";
 }
 
 /**
@@ -60,7 +60,7 @@ std::string ring_buffer::get_back(){
         // handle empty access error
         return "";
     }
-    return "" 
+    return ""; 
 }
 
 /**
@@ -74,5 +74,5 @@ bool ring_buffer::is_empty(){
  * Checks if the buffer is full
  */
 bool ring_buffer::is_full(){
-    return (back + 1) % this->capacity == front;
+    return (this->front + 1) % this->capacity == this->back;
 }
